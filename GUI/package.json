@@ -26,7 +26,7 @@
     "eslint-plugin-prettier": "^4.2.1",
     "framer-motion": "^11.0.14",
     "howler": "^2.2.4",
-    "i18next": "^22.4.9",
+    "i18next": "^23.11.3",
     "i18next-browser-languagedetector": "^7.0.1",
     "moment": "^2.29.4",
     "msw": "^0.49.2",
