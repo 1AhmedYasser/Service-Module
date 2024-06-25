@@ -49,7 +49,7 @@
     "reactflow": "^11.7.0",
     "rxjs": "^7.8.0",
     "sass": "^1.57.1",
-    "sass-loader": "^13.2.0",
+    "sass-loader": "^14.2.1",
     "to-json-schema": "^0.2.5",
     "typescript": "^4.9.4",
     "uuid": "^9.0.0",
