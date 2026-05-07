@@ -19,6 +19,11 @@ export type EndpointDefinition = {
     rawData: RawData;
     isRawSelected?: boolean;
   };
+  pathParams?: {
+    variables: EndpointVariableData[];
+    rawData: RawData;
+    isRawSelected?: boolean;
+  };
   headers?: {
     variables: EndpointVariableData[];
     rawData: RawData;

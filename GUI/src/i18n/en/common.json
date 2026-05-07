@@ -267,6 +267,7 @@
       "live": "Live endpoint",
       "name": "Endpoint name",
       "params": "Params",
+      "pathParams": "Path Params",
       "publicEndpoint": "Public endpoint",
       "required": "Variable is required",
       "single": "Endpoint",

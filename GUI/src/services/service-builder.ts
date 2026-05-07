@@ -201,7 +201,7 @@ export async function saveEndpoints(endpoints: EndpointData[], onSuccess?: () =>
 function filterOutEndpointsTrailingUnderscores(endpoint: EndpointData) {
   if (endpoint.definitions) {
     for (const definition of endpoint.definitions) {
-      for (const section of ['body', 'headers', 'params'] as const) {
+      for (const section of ['body', 'headers', 'params', 'pathParams'] as const) {
         if (definition[section]?.variables) {
           for (const v of definition[section].variables) {
             v.name = removeTrailingUnderscores(v.name);
@@ -845,13 +845,21 @@ function handleEndpointStep(
   const isRawBodySelected = endpointDefinition?.body?.isRawSelected ?? false;
   const rawBody = endpointDefinition?.body?.rawData ?? {};
   const headersVariables = endpointDefinition?.headers?.variables;
+  const pathParamsVariables = endpointDefinition?.pathParams?.variables;
   const methodType = endpointDefinition?.methodType?.toLowerCase();
   const hasNonEqualOperator = paramsVariables?.some((param: any) => param.operator && param.operator !== '=');
+
+  let resolvedUrl = hasNonEqualOperator ? (endpointDefinition?.url ?? '') : (endpointDefinition?.url?.split('?')[0] ?? '');
+  if (Array.isArray(pathParamsVariables)) {
+    pathParamsVariables.forEach((p: any) => {
+      if (p.name && p.value) resolvedUrl = resolvedUrl.replace(`{${p.name}}`, p.value);
+    });
+  }
 
   const stepConfig: any = {
     call: `http.${methodType ?? 'post'}`,
     args: {
-      url: hasNonEqualOperator ? (endpointDefinition?.url ?? '') : (endpointDefinition?.url?.split('?')[0] ?? ''),
+      url: resolvedUrl,
     },
     result: `${parentNode.data.endpoint?.name.replaceAll(' ', '_')}_res`,
     next: childNode ? toSnakeCase(childNode.data.label ?? 'format_messages') : 'format_messages',

@@ -43,7 +43,7 @@ const RequestVariables: React.FC<RequestVariablesProps> = ({
   onParametersChange,
 }) => {
   const { t } = useTranslation();
-  const tabs: EndpointTab[] = [EndpointTab.Params, EndpointTab.Headers, EndpointTab.Body];
+  const tabs: EndpointTab[] = [EndpointTab.PathParams, EndpointTab.Params, EndpointTab.Headers, EndpointTab.Body];
   const [jsonError, setJsonError] = useState<string>();
   const [key, setKey] = useState<number>(0);
   const { updateEndpointRawData, updateEndpointData } = useServiceStore();
@@ -161,6 +161,11 @@ const RequestVariables: React.FC<RequestVariablesProps> = ({
 
   const updateRowField = (id: string, field: FieldType, newValue: string) => {
     setRowsData((prevRowsData) => {
+      const oldName =
+        field === 'variable' && requestTab.tab === EndpointTab.PathParams
+          ? prevRowsData[requestTab.tab]?.find((r) => r.id === id)?.variable
+          : undefined;
+
       const newRowsData = { ...prevRowsData };
       newRowsData[requestTab.tab] = [...(newRowsData[requestTab.tab] || [])];
 
@@ -172,6 +177,10 @@ const RequestVariables: React.FC<RequestVariablesProps> = ({
           row[field] = newValue;
         }
       });
+
+      if (oldName) {
+        endpoint.definitions[0].url = endpoint.definitions[0].url?.replace(`{${oldName}}`, `{${newValue}}`);
+      }
 
       if (endpoint.type === 'custom') {
         newRowsData[requestTab.tab] = maintainSingleEmptyRow(newRowsData[requestTab.tab] || []);
@@ -301,6 +310,12 @@ const RequestVariables: React.FC<RequestVariablesProps> = ({
       };
     } else if (requestTab.tab === 'headers') {
       endpoint.definitions[0].headers = {
+        variables: variables,
+        rawData: {},
+        isRawSelected: false,
+      };
+    } else if (requestTab.tab === 'pathParams') {
+      endpoint.definitions[0].pathParams = {
         variables: variables,
         rawData: {},
         isRawSelected: false,

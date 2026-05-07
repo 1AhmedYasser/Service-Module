@@ -55,6 +55,11 @@ const EndpointCustom: React.FC<EndpointCustomProps> = ({
         rawData: {},
         isRawSelected: false,
       },
+      pathParams: {
+        variables: [],
+        rawData: {},
+        isRawSelected: false,
+      },
     });
   }
 
@@ -123,6 +128,19 @@ const EndpointCustom: React.FC<EndpointCustomProps> = ({
                   rawData: {},
                   isRawSelected: false,
                 };
+
+                const existingPathParams = endpoint.definitions[0].pathParams?.variables ?? [];
+                const pathParamNames = parsePathParams(event.target.value);
+                const pathParameters: EndpointVariableData[] = pathParamNames.map((name) => {
+                  const existing = existingPathParams.find((p) => p.name === name);
+                  return existing ?? { id: uuid(), name, type: 'custom', required: false };
+                });
+
+                endpoint.definitions[0].pathParams = {
+                  variables: pathParameters,
+                  rawData: {},
+                  isRawSelected: false,
+                };
                 refereshEndpoint();
               }}
               placeholder={t('newService.endpoint.insert') ?? ''}
@@ -165,6 +183,12 @@ const EndpointCustom: React.FC<EndpointCustomProps> = ({
     </Track>
   );
 };
+
+function parsePathParams(url: string): string[] {
+  const path = url.split('?')[0];
+  const matches = path.match(/\{([^}]+)\}/g) ?? [];
+  return matches.map((m) => m.slice(1, -1));
+}
 
 function parseURL(url: string) {
   try {
