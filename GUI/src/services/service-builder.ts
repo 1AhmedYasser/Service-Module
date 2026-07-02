@@ -697,6 +697,8 @@ function getBranchNodes(
   return branchNodes;
 }
 
+const SPACE_PLACEHOLDER = '\uE000';
+
 function replaceSpacesOutsideTags(input: string, placeholder: string): string {
   let result = '';
   let i = 0;
@@ -710,7 +712,7 @@ function replaceSpacesOutsideTags(input: string, placeholder: string): string {
         continue;
       }
     }
-    result += ch === ' ' ? placeholder : ch;
+    result += ch === ' ' || ch === '\t' ? placeholder : ch;
     i++;
   }
   return result;
@@ -725,15 +727,14 @@ function normalizeMarkdownListsToPlainBullets(markdown: string): string {
 }
 
 export function toMarkdownMessage(raw: string): string {
-  const spacePlaceholder = '___SPACE___';
   const prepared = decodeHtmlEntities(raw).replaceAll('{{', '${').replaceAll('}}', '}');
-  const withPlaceholders = replaceSpacesOutsideTags(prepared, spacePlaceholder);
+  const withPlaceholders = replaceSpacesOutsideTags(prepared, SPACE_PLACEHOLDER);
   const markdown = containsHtmlMarkup(withPlaceholders)
     ? htmlToMarkdown
         .translate(withPlaceholders)
-        .replaceAll(spacePlaceholder, ' ')
+        .replaceAll(SPACE_PLACEHOLDER, ' ')
         .replaceAll(/\\([-~>[\]_*#().!`=<\\])/g, String.raw`\\$1`)
-    : withPlaceholders.replaceAll(spacePlaceholder, ' ');
+    : withPlaceholders.replaceAll(SPACE_PLACEHOLDER, ' ');
 
   const normalized = normalizeMarkdownListsToPlainBullets(markdown);
   const trimmed = normalized.trim().toLowerCase();
@@ -769,13 +770,20 @@ function normalizeMessageNodes(nodes: Node<NodeDataProps>[]): Node<NodeDataProps
   });
 }
 
+function resolveMessageContent(message: string | undefined): string {
+  if (!message) return '';
+  return containsHtmlMarkup(message) ? toMarkdownMessage(message) : message;
+}
+
 function handleTextField(
   finishedFlow: Map<any, any>,
   parentStepName: string,
   parentNode: Node,
   childNode: Node<NodeDataProps> | undefined,
 ) {
-  const finalMessage = toMarkdownMessage(typeof parentNode.data.message === 'string' ? parentNode.data.message : '');
+  const finalMessage = resolveMessageContent(
+    typeof parentNode.data.message === 'string' ? parentNode.data.message : undefined,
+  );
 
   finishedFlow.set(parentStepName, {
     assign: {
@@ -1072,7 +1080,7 @@ function handleMultiChoiceQuestion(
     b.payload = b.payload.replace(/\/[^/]*_mcq_/, `/${rootServiceName}_mcq_`);
   });
 
-  const finalQuestion = toMarkdownMessage(parentNode?.data?.multiChoiceQuestion?.question ?? '');
+  const finalQuestion = resolveMessageContent(parentNode?.data?.multiChoiceQuestion?.question ?? '');
 
   return finishedFlow.set(parentStepName, {
     assign: {
