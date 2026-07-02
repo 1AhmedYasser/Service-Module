@@ -721,7 +721,7 @@ function replaceSpacesOutsideTags(input: string, placeholder: string): string {
 const containsHtmlMarkup = (value: string): boolean => /<[a-z][^>]*>/i.test(value);
 
 function normalizeMarkdownListsToPlainBullets(markdown: string): string {
-  return markdown.replace(/^(\s*)[-*+]\s+(.+)$/gm, '$1• $2').replace(/^(\s*)(\d+)\.\s+(.+)$/gm, '$1$2) $3');
+  return markdown.replace(/^([ \t]*)[-*+][ \t]+(?=\S)/gm, '$1• ').replace(/^([ \t]*)(\d+)\.[ \t]+(?=\S)/gm, '$1$2) ');
 }
 
 export function toMarkdownMessage(raw: string): string {
