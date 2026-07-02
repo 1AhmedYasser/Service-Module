@@ -285,7 +285,7 @@ export const saveFlow = async ({
   showError = true,
 }: SaveFlowConfig) => {
   try {
-    const nodes = normalizeMcqPayloads(rawNodes, name);
+    const nodes = normalizeMessageNodes(normalizeMcqPayloads(rawNodes, name));
     const edges = normalizeEdgeLabels(rawEdges, nodes);
     let yamlContent = getYamlContent(nodes, edges, name, description, showError);
 
@@ -716,19 +716,57 @@ function replaceSpacesOutsideTags(input: string, placeholder: string): string {
   return result;
 }
 
-function toMarkdownMessage(raw: string): string {
-  const spacePlaceholder = '___SPACE___';
-  const withPlaceholders = replaceSpacesOutsideTags(
-    decodeHtmlEntities(raw).replaceAll('{{', '${').replaceAll('}}', '}'),
-    spacePlaceholder,
-  );
-  const markdown = htmlToMarkdown
-    .translate(withPlaceholders)
-    .replaceAll(spacePlaceholder, ' ')
-    .replaceAll(/\\([-~>[\]_*#().!`=<\\])/g, String.raw`\\$1`);
+const containsHtmlMarkup = (value: string): boolean => /<[a-z][^>]*>/i.test(value);
 
-  const trimmed = markdown.trim().toLowerCase();
-  return trimmed === 'yes' || trimmed === 'no' ? `\${"${trimmed}"}` : markdown;
+function normalizeMarkdownListsToPlainBullets(markdown: string): string {
+  return markdown
+    .replace(/^(\s*)[-*+]\s+(.+)$/gm, '$1• $2')
+    .replace(/^(\s*)(\d+)\.\s+(.+)$/gm, '$1$2) $3');
+}
+
+export function toMarkdownMessage(raw: string): string {
+  const spacePlaceholder = '___SPACE___';
+  const prepared = decodeHtmlEntities(raw).replaceAll('{{', '${').replaceAll('}}', '}');
+  const withPlaceholders = replaceSpacesOutsideTags(prepared, spacePlaceholder);
+  const markdown = containsHtmlMarkup(withPlaceholders)
+    ? htmlToMarkdown
+        .translate(withPlaceholders)
+        .replaceAll(spacePlaceholder, ' ')
+        .replaceAll(/\\([-~>[\]_*#().!`=<\\])/g, String.raw`\\$1`)
+    : withPlaceholders.replaceAll(spacePlaceholder, ' ');
+
+  const normalized = normalizeMarkdownListsToPlainBullets(markdown);
+  const trimmed = normalized.trim().toLowerCase();
+  return trimmed === 'yes' || trimmed === 'no' ? `\${"${trimmed}"}` : normalized;
+}
+
+function normalizeMessageNodes(nodes: Node<NodeDataProps>[]): Node<NodeDataProps>[] {
+  return nodes.map((node) => {
+    if (node.data.stepType === StepType.Textfield && typeof node.data.message === 'string') {
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          message: toMarkdownMessage(node.data.message),
+        },
+      };
+    }
+
+    if (node.data.stepType === StepType.MultiChoiceQuestion && node.data.multiChoiceQuestion) {
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          multiChoiceQuestion: {
+            ...node.data.multiChoiceQuestion,
+            question: toMarkdownMessage(node.data.multiChoiceQuestion.question ?? ''),
+          },
+        },
+      };
+    }
+
+    return node;
+  });
 }
 
 function handleTextField(

@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   getYamlContent,
+  toMarkdownMessage,
   validateAssign,
   validateCondition,
   validateDynamicChoices,
@@ -374,5 +375,28 @@ describe('Nonce step injection', () => {
     expect(keys.indexOf('empty_messages_get_new_nonce')).toBeLessThan(keys.indexOf('empty_messages'));
 
     expect(result.empty_messages.args.headers['x-ruuter-nonce']).toBe('${empty_messages_nonce.response.body[0].nonce}');
+  });
+});
+
+describe('toMarkdownMessage', () => {
+  it('converts rich text html bullet lists to plain bullet characters', () => {
+    const html =
+      '<p>hello here is my stuff</p><ul><li>be honest</li><li>be loyal</li><li>be strong</li><li>be faithful</li></ul>';
+
+    expect(toMarkdownMessage(html)).toBe(
+      'hello here is my stuff\n\n• be honest\n• be loyal\n• be strong\n• be faithful',
+    );
+  });
+
+  it('converts existing markdown bullet lists to plain bullet characters', () => {
+    const markdown = 'hello here is my stuff\n\n* be honest\n* be loyal';
+
+    expect(toMarkdownMessage(markdown)).toBe('hello here is my stuff\n\n• be honest\n• be loyal');
+  });
+
+  it('converts ordered lists to plain numbered lines', () => {
+    const markdown = 'Steps:\n\n1. first\n2. second';
+
+    expect(toMarkdownMessage(markdown)).toBe('Steps:\n\n1) first\n2) second');
   });
 });
