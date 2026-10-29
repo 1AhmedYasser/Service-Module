@@ -273,6 +273,9 @@ const ServicesTable: FC = () => {
         expandedIds,
         onToggleExpanded: toggleExpanded,
         onFocusService: toggleFocus,
+        onReindex: (service: Service) => {
+          void useServiceListStore.getState().reindexService(service);
+        },
       }),
     [changeServiceStatus, expandedIds, navigate, serviceIdBeingChecked, toggleExpanded, toggleFocus],
   );

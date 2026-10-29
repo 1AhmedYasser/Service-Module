@@ -13,6 +13,7 @@ export const getEndpointValidationMock = (): string => `${baseUrl}/mocks/validat
 export const getEndpointValidation = (): string => `${baseUrl}/services/endpoint-url-validation`;
 export const deleteService = (): string => `${baseUrl}/services/delete`;
 export const changeServiceStatus = (): string => `${baseUrl}/services/status`;
+export const reindexService = (): string => `${baseUrl}/services/reindex-service`;
 export const createNewService = (): string => `${baseUrl}/services/add`;
 export const testService = (state: ServiceState, serviceName: string): string =>
   `${baseUrl}/services/${state.toLowerCase()}/${serviceName}`;

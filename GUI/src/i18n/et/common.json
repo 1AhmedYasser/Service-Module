@@ -298,6 +298,10 @@
         "FAILED": "Indekseerimine ebaõnnestus",
         "IN_PROGRESS": "Indekseerimine käib",
         "NONE": "Indekseerimata"
+      },
+      "toast": {
+        "started": "Indekseerimine algas",
+        "failed": "Indekseerimine ebaõnnestus"
       }
     },
     "pin": {

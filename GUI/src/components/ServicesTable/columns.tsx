@@ -22,6 +22,7 @@ interface GetColumnsConfig {
   expandedIds: ReadonlySet<string>;
   onToggleExpanded: (service: Service) => void;
   onFocusService: (service: Service) => void;
+  onReindex: (service: Service) => void;
 }
 
 const openService = (navigate: NavigateFunction, service: Service) => {
@@ -37,6 +38,7 @@ export const getColumns = ({
   expandedIds,
   onToggleExpanded,
   onFocusService,
+  onReindex,
 }: GetColumnsConfig) => {
   const columnHelper = createColumnHelper<Service>();
 
@@ -130,6 +132,7 @@ export const getColumns = ({
         <IndexStatus
           status={props.row.original.indexStatus}
           canReindex={props.row.original.state === ServiceState.Active}
+          onReindex={() => onReindex(props.row.original)}
         />
       ),
     }),
