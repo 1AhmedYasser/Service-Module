@@ -1019,7 +1019,7 @@ export function buildExplainRequest(endpoint: EndpointDefinition) {
   const queryParams = allParams.filter((p) => !isPathParam(p));
   for (const param of pathParams) {
     if (param.value?.trim()) {
-      url = url.split(`{${param.name}}`).join(encodeURIComponent(param.value));
+      url = url.split(`{${param.name}}`).join(param.value);
     }
   }
   const queryOnlyParams = endpoint.params ? { ...endpoint.params, variables: queryParams } : undefined;
