@@ -31,12 +31,19 @@ const makeEndpoint = (
   }) as EndpointDefinition;
 
 describe('buildExplainRequest', () => {
-  it('substitutes OpenAPI path params (in: path) and URL-encodes values', () => {
+  it('substitutes OpenAPI path params (in: path) without pre-encoding values', () => {
     const request = buildExplainRequest(
       makeEndpoint('https://ekilex.ee/api/word/search/{word}', [{ name: 'word', in: 'path', value: 'kas tan' }]),
     );
-    expect(request.url).toBe('https://ekilex.ee/api/word/search/kas%20tan');
+    expect(request.url).toBe('https://ekilex.ee/api/word/search/kas tan');
     expect(request.params).toEqual({});
+  });
+
+  it('keeps Estonian characters in path params unencoded so Ruuter encodes them once', () => {
+    const request = buildExplainRequest(
+      makeEndpoint('https://ekilex.ee/api/word/search/{word}', [{ name: 'word', paramType: 'path', value: 'õun' }]),
+    );
+    expect(request.url).toBe('https://ekilex.ee/api/word/search/õun');
   });
 
   it('substitutes path params marked with paramType', () => {

@@ -136,7 +136,7 @@ const useApiRegistryStore = create<ApiRegistryState>((set, get) => ({
     const queryParams = allParams.filter((p) => p.paramType !== 'path');
     for (const param of pathParams) {
       if (param.value?.trim()) {
-        url = url.split(`{${param.name}}`).join(encodeURIComponent(param.value));
+        url = url.split(`{${param.name}}`).join(param.value);
       }
     }
     // Skip test if any path variable placeholder is still unresolved
