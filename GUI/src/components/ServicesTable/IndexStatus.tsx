@@ -43,7 +43,7 @@ const IndexStatus: FC<IndexStatusProps> = ({ status, canReindex, onReindex }) =>
       <button
         type="button"
         className={clsx('services-table__text-action', 'index-status__reindex')}
-        disabled={!canReindex}
+        disabled={!canReindex || status === 'IN_PROGRESS'}
         title={canReindex ? undefined : (t('overview.index.reindexOnlyActive') ?? '')}
         onClick={onReindex}
       >

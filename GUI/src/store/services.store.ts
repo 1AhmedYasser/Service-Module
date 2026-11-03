@@ -10,6 +10,7 @@ import {
   getServicesOverview,
   locateService as locateServiceApi,
   pinService as pinServiceApi,
+  reindexService as reindexServiceApi,
   unpinService as unpinServiceApi,
 } from 'resources/api-constants';
 import { Service, ServiceState } from 'types';
@@ -122,6 +123,7 @@ interface ServiceStoreState {
   loadActivationBlockers: (serviceId: string) => Promise<ActivationBlocker[]>;
   loadAffectedActiveServices: (serviceId: string) => Promise<AffectedService[]>;
   changeServiceState: (service: ServiceStatusTarget, state: ServiceState) => Promise<void>;
+  reindexService: (service: Service) => Promise<void>;
   deleteSelectedService: (
     onEnd: () => void,
     successMessage: string,
@@ -298,6 +300,27 @@ const useServiceListStore = create<ServiceStoreState>()(
           pinnedServices: get().pinnedServices.map(withNewState),
         });
         useToastStore.getState().success({ title: i18n.t('overview.service.toast.updated') });
+
+        const { servicesPagination, servicesSorting } = get();
+        await get()
+          .loadServicesList(servicesPagination, servicesSorting, undefined, { keepOrder: true })
+          .catch(console.error);
+      },
+      reindexService: async (service) => {
+        const markInProgress = (item: Service): Service =>
+          item.serviceId === service.serviceId ? { ...item, indexStatus: 'IN_PROGRESS' } : item;
+        set({
+          services: get().services.map(markInProgress),
+          pinnedServices: get().pinnedServices.map(markInProgress),
+        });
+
+        try {
+          await api.post(reindexServiceApi(), { serviceId: service.serviceId });
+          useToastStore.getState().success({ title: i18n.t('overview.index.toast.started') });
+        } catch (error) {
+          console.error(error);
+          useToastStore.getState().error({ title: i18n.t('overview.index.toast.failed') });
+        }
 
         const { servicesPagination, servicesSorting } = get();
         await get()

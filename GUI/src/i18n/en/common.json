@@ -298,6 +298,10 @@
         "FAILED": "Indexing failed",
         "IN_PROGRESS": "Indexing in progress",
         "NONE": "Not indexed"
+      },
+      "toast": {
+        "started": "Reindex started",
+        "failed": "Reindex failed"
       }
     },
     "pin": {
