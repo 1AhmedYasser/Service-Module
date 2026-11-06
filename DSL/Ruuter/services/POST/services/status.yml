@@ -134,7 +134,26 @@ delete_from_storage_before_draft:
           container: "[#STORAGE_FERRY_CONTAINER]"
           fileName: "${storage_file_name}.json"
   result: ferry_delete_result
-  next: trigger_azure_indexer_before_draft
+  error: check_delete_from_storage_before_draft
+  next: check_delete_from_storage_before_draft
+
+check_delete_from_storage_before_draft:
+  switch:
+    - condition: ${200 <= ferry_delete_result.response.statusCodeValue && ferry_delete_result.response.statusCodeValue < 300}
+      next: trigger_azure_indexer_before_draft
+    - condition: ${ferry_delete_result.response.statusCodeValue === 404}
+      next: draft_service
+  next: restore_status_after_storage_failure
+
+restore_status_after_storage_failure:
+  call: http.post
+  args:
+    url: "[#SERVICE_RESQL]/set-status"
+    body:
+      id: ${id}
+      new_state: ${status_res.response.body[0].currentState}
+  result: restore_status_res
+  next: return_storage_delete_failed
 
 trigger_azure_indexer_before_draft:
   template: "[#SERVICE_PROJECT_LAYER]/trigger-azure-indexer"
@@ -332,6 +351,11 @@ return_same_state_update:
 return_service_file_missing:
   status: 500
   return: "Service file to update is missing"
+  next: end
+
+return_storage_delete_failed:
+  status: 500
+  return: "Failed to delete service from storage"
   next: end
 
 return_intent_does_not_exist:
