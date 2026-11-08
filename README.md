@@ -1,174 +1,391 @@
-# Bürokratt's Service Module
+<div align="center">
 
-Bürokratt's Service Module is a tool to help primarily product owners in collaboration with customer support agents/service managers to create, edit and otherwise manipulate Bürokratt's e-services via a graphical user interface. This includes setting up Ruuter- and Rasa-based Rules, making X-road / REST / database requests where and when appropriate and so forth.
+# Bürokratt Service Module
 
-Service Module focuses on the part of creation of any service where Bürokratt users can define service endpoints (i.e API or X-Road) whereas Training Module focuses on Rasa's side.
+**Build, test and publish Bürokratt e-services visually, without writing code.**
 
-# Scope
+[![Build and publish GUI](https://github.com/buerokratt/Service-Module/actions/workflows/ci-build-image.yml/badge.svg)](https://github.com/buerokratt/Service-Module/actions/workflows/ci-build-image.yml)
+[![Run checks](https://github.com/buerokratt/Service-Module/actions/workflows/run-checks.yml/badge.svg)](https://github.com/buerokratt/Service-Module/actions/workflows/run-checks.yml)
+[![Release](https://img.shields.io/github/v/release/buerokratt/Service-Module)](https://github.com/buerokratt/Service-Module/releases)
+![Node](https://img.shields.io/badge/node-22.18-339933?logo=node.js&logoColor=white)
+![React](https://img.shields.io/badge/react-Vite-61DAFB?logo=react&logoColor=black)
 
-This repo will primarily contain:
+<!-- TODO: add a screenshot or GIF of the service canvas -->
+<!-- <img src="docs/assets/service-canvas.png" alt="Service Module canvas" width="800" /> -->
 
-1. Architectural and other documentation;
-2. Docker Compose file to set up and run Bürokratt's Service Module as a fully functional service;
-3. Tests specific to Bürokratt's Service Module.
+</div>
 
-## Dev setup
+---
 
-- Make sure that env variable REACT_APP_LOCAL is set to true(default).
+## Table of Contents
 
-- Clone [Ruuter](https://github.com/buerokratt/Ruuter)
+- [Overview](#overview)
+- [Architecture](#architecture)
+- [Technologies](#technologies)
+- [Repository Structure](#repository-structure)
+- [Prerequisites](#prerequisites)
+- [Quick Start](#quick-start)
+- [Configuration](#configuration)
+- [Development](#development)
+- [Deployment](#deployment)
+- [Troubleshooting](#troubleshooting)
+- [Documentation](#documentation)
+- [Contributors](#contributors)
 
-- Navigate to Ruuter and build the image `docker build -t ruuter .`
+---
 
-- Clone [Resql](https://github.com/buerokratt/Resql)
+## Overview
 
-- Navigate to Resql and build the image `docker build -t resql .`
+Service Module is a graphical tool for **product owners**, **customer support agents** and **service managers** to create, edit and manage Bürokratt's e-services.
 
-- Clone [Data Mapper](https://github.com/buerokratt/DataMapper)
+Key capabilities:
 
-- Navigate to Data Mapper and build the image `docker build -t data-mapper .`
+- 🧩 **Visual service builder**: design service flows on a drag-and-drop canvas
+- 🔌 **Integrations**: call REST endpoints, X-Road services and databases from within a service
+- 📚 **API Registry**: reuse registered endpoints across services
+- 🧪 **Live testing**: test endpoints and whole services before publishing
+- 🔗 **Service dependencies**: see how services relate to each other
+- 🤖 **Ruuter DSL generation**: generate the Ruuter DSL behind each service
 
-- Clone [TIM](https://github.com/buerokratt/TIM)
+---
 
-- Navigate to TIM and build the image `docker build -t tim .`
+## Architecture
 
-- Clone [SiGA](https://github.com/open-eid/SiGa)
+```mermaid
+flowchart LR
+    User([Service Manager]) e1@--> GUI[Service Module GUI<br/>React + Vite]
+    GUI e2@--> Ruuter[Ruuter<br/>DSL engine]
+    Ruuter e3@--> Resql[Resql<br/>SQL service]
+    Ruuter e4@--> DMapper[Data Mapper]
+    Ruuter e5@--> TIM[TIM<br/>Auth / JWT]
+    Ruuter e6@--> OpenSearch[(OpenSearch)]
+    Ruuter e7@--> VaultAgent[Vault Agent]
+    VaultAgent e8@--> Vault[(HashiCorp Vault)]
+    Resql e9@--> DB[(PostgreSQL)]
+    Ruuter e10@--> SiGA[SiGA<br/>Digital signing]
+    Ruuter e11@--> Pipelines[Pipelines]
+    Pipelines e12@--> Azurite[(Azure Blob<br/>Azurite)]
 
-- Set java version to 17
+    e1@{ animate: true }
+    e2@{ animate: true }
+    e3@{ animate: true }
+    e4@{ animate: true }
+    e5@{ animate: true }
+    e6@{ animate: true }
+    e7@{ animate: true }
+    e8@{ animate: true }
+    e9@{ animate: true }
+    e10@{ animate: true }
+    e11@{ animate: true }
+    e12@{ animate: true }
 
-- Navigate to SiGA & run `./mvnw clean install`
+    classDef client fill:#E0F2FE,stroke:#0284C7,color:#0C4A6E
+    classDef core fill:#EDE9FE,stroke:#7C3AED,color:#3B0764
+    classDef service fill:#DCFCE7,stroke:#16A34A,color:#14532D
+    classDef store fill:#FEF3C7,stroke:#D97706,color:#78350F
 
-- Navigate to SiGA & run `./mvnw spring-boot:build-image -pl siga-webapp -DskipTests`
-
-- Copy docker folder from SiGA directory & paste it into current repo directory.
-
-- Clone [SiGA Demo](https://github.com/open-eid/SiGa-demo-application)
-
-- Build demo docker image using `./mvnw spring-boot:build-image -DskipTests`
-
-- Navigate to current repo and run `./docker/tls/generate-certificates.sh`
-
-- Navigate to current repo and run `docker-compose $(find docker-* | sed -e 's/^/-f /') up -d`
-
-- Go to <https://localhost:3001>
-
-**Training Module GUI setup in Service Module**
-
-- Clone [Training Module](https://github.com/buerokratt/Training-Module)
-- Training Module `.env` file includes REACT_APP_SERVICE_MODULE_GUI_BASE_URL
-- In Training Module run: `docker-compose up -d`
-  - Training module uses the same network as Service Module
-
-Currently, Header and Main Navigation used as external components, they are defined as dependency in package.json
-
+    class User,GUI client
+    class Ruuter core
+    class Resql,DMapper,TIM,VaultAgent,SiGA,Pipelines service
+    class DB,OpenSearch,Vault,Azurite store
 ```
- "@buerokrat-ria/header": "^0.0.1"
- "@buerokrat-ria/menu": "^0.0.1"
- "@buerokrat-ria/styles": "^0.0.1"
+
+| Component | Role | Local port |
+| --- | --- | --- |
+| **GUI** | React front end | `3006` |
+| **Ruuter** | Runs the DSL endpoints in [`DSL/Ruuter`](./DSL/Ruuter) | `8086` |
+| **Resql** | Runs the SQL queries in [`DSL/Resql`](./DSL/Resql) | `8087` |
+| **Data Mapper** | Handlebars-based data transformations | `3005` |
+| **TIM** | Authentication and JWT issuing | `8085` |
+| **PostgreSQL** | Services database | `5433` |
+| **OpenSearch** | Search and indexing | `9200` |
+| **Pipelines** | Background processing pipelines | `3010` |
+| **Azurite** | Local Azure Blob Storage emulator | `10000-10002` |
+| **Vault + Agent** | Secrets management | `8205` (agent) |
+
+---
+
+## Technologies
+
+### Frontend
+
+<p>
+  <img src="https://skillicons.dev/icons?i=react" alt="React" title="React" width="48" height="48" />
+  <img src="https://skillicons.dev/icons?i=ts" alt="TypeScript" title="TypeScript" width="48" height="48" />
+  <img src="https://skillicons.dev/icons?i=vite" alt="Vite" title="Vite" width="48" height="48" />
+  <img src="https://skillicons.dev/icons?i=sass" alt="Sass" title="Sass" width="48" height="48" />
+  <img src="https://skillicons.dev/icons?i=reactivex" alt="RxJS" title="RxJS" width="48" height="48" />
+  <img src="https://skillicons.dev/icons?i=d3" alt="D3" title="D3" width="48" height="48" />
+</p>
+
+### Backend & Infrastructure
+
+<p>
+  <img src="https://skillicons.dev/icons?i=java" alt="Java" title="Java (Ruuter, Resql, TIM)" width="48" height="48" />
+  <img src="https://skillicons.dev/icons?i=postgres" alt="PostgreSQL" title="PostgreSQL" width="48" height="48" />
+  <img src="https://skillicons.dev/icons?i=docker" alt="Docker" title="Docker" width="48" height="48" />
+  <img src="https://skillicons.dev/icons?i=kubernetes" alt="Kubernetes" title="Kubernetes" width="48" height="48" />
+  <img src="https://skillicons.dev/icons?i=azure" alt="Azure Blob Storage" title="Azure Blob Storage (Azurite)" width="48" height="48" />
+  <img src="https://skillicons.dev/icons?i=nginx" alt="Nginx" title="Nginx" width="48" height="48" />
+  <img src="https://skillicons.dev/icons?i=bash" alt="Bash" title="Bash" width="48" height="48" />
+</p>
+
+### Tooling
+
+<p>
+  <img src="https://skillicons.dev/icons?i=nodejs" alt="Node.js" title="Node.js" width="48" height="48" />
+  <img src="https://skillicons.dev/icons?i=npm" alt="npm" title="npm" width="48" height="48" />
+  <img src="https://skillicons.dev/icons?i=vitest" alt="Vitest" title="Vitest" width="48" height="48" />
+  <img src="https://skillicons.dev/icons?i=git" alt="Git" title="Git" width="48" height="48" />
+  <img src="https://skillicons.dev/icons?i=githubactions" alt="GitHub Actions" title="GitHub Actions" width="48" height="48" />
+</p>
+
+---
+
+## Repository Structure
+
+```text
+Service-Module/
+├── GUI/                 # React + Vite front end
+├── DSL/
+│   ├── Ruuter/          # Ruuter endpoint definitions (YAML)
+│   ├── Resql/           # SQL queries used by Resql
+│   ├── DMapper/         # Data Mapper templates
+│   ├── Liquibase/       # Database migrations
+│   ├── OpenSearch/      # Index mappings and deploy script
+│   └── Pipelines/       # Pipeline definitions
+├── vault/               # Vault + Vault Agent config
+├── scripts/             # Helper scripts (Azurite init, ...)
+├── docs/                # Additional documentation
+├── docker-compose.yml   # Full local stack
+├── migrate.sh           # Run database migrations
+└── create-migration.sh  # Scaffold a new migration
 ```
 
-### Database setup
+---
 
-To use the local services database, do the following:
+## Prerequisites
 
-1. Open `docker-compose.yml`, find `resql` service and change the value of environment variable `sqlms.datasources.[0].jdbcUrl` to `jdbc:postgresql://database:5432/services_db`.
-2. Run `./migrate.sh` to run migrations.
-3. Start the project normally with `docker compose up -d`.
+| Tool | Version | Used for |
+| --- | --- | --- |
+| [Docker](https://docs.docker.com/get-docker/) + Compose | latest | Running the stack |
+| [Node.js](https://nodejs.org/) | `22.18.0` (see [`GUI/.nvmrc`](./GUI/.nvmrc)) | GUI development |
+| [Java](https://adoptium.net/) | `17` | Building SiGA |
+| [pipx](https://pipx.pypa.io/) | latest | Installing SQLFluff |
 
-Extras:
+---
 
-- For setting up the users database initially, run
-  `docker run --platform linux/amd64 --network=bykstack riaee/byk-users-db:liquibase20220615 --url=jdbc:postgresql://database:5432/users_db --username=byk --password=01234 --changelog-file=./master.yml update`
-- When creating new migrations, use the helper `./create-migration.sh name-of-migration` which will create a timestamped file in the correct directory and add the required headers
+## Quick Start
 
-### Open Search
+### 1. Build the dependency images
 
-- To Initialize Open Search run `./deploy-opensearch.sh <URL> <AUTH> <Is Mock Allowed - Default false>`
-- To Use Opensearch locally run `./deploy-opensearch.sh http://localhost:9200 admin:admin true`
+Clone each repository and build its image:
 
-### TIM
+| Repository | Build command | Image tag |
+| --- | --- | --- |
+| [Ruuter](https://github.com/buerokratt/Ruuter) | `docker build -t ruuter .` | `ruuter` |
+| [Resql](https://github.com/buerokratt/Resql) | `docker build -t resql .` | `resql` |
+| [Data Mapper](https://github.com/buerokratt/DataMapper) | `docker build -t data-mapper .` | `data-mapper` |
+| [TIM](https://github.com/buerokratt/TIM) | `docker build -t tim .` | `tim` |
 
-- if you are running `Locally` then you need to curl the login request or run it on postman first to create and store the cookie in TIM and then on the browser create the cookie manully in the browser with name `customJwtCookie` and the value return from the curl
-  the curl request is as follows:
+<details>
+<summary><strong>SiGA (digital signing): optional</strong></summary>
 
+1. Clone [SiGA](https://github.com/open-eid/SiGa) and switch to Java 17.
+2. Build it:
+   ```bash
+   ./mvnw clean install
+   ./mvnw spring-boot:build-image -pl siga-webapp -DskipTests
+   ```
+3. Copy SiGA's `docker` folder into this repository.
+4. Clone [SiGA Demo](https://github.com/open-eid/SiGa-demo-application) and build it:
+   ```bash
+   ./mvnw spring-boot:build-image -DskipTests
+   ```
+5. Generate the TLS certificates from this repository:
+   ```bash
+   ./docker/tls/generate-certificates.sh
+   ```
+
+</details>
+
+### 2. Start the stack
+
+> [!IMPORTANT]
+> Make sure `REACT_APP_LOCAL=true` (the default) for local development.
+
+```bash
+docker compose $(find docker-* | sed -e 's/^/-f /') up -d
 ```
-curl -X POST -H "Content-Type: application/json" -d '{
-  "login": "EE30303039914",
-  "password": "OK"
-}' http://localhost:8086/services/auth/login
+
+### 3. Open the app
+
+Go to **<http://localhost:3006/services>**.
+
+---
+
+## Configuration
+
+### Environment variables
+
+| Variable | Where | Description | Required | Default |
+| --- | --- | --- | :---: | --- |
+| `REACT_APP_LOCAL` | GUI | Enables local development mode | | `true` |
+| `REACT_APP_RUUTER_SERVICES_TESTING_HEADER` | GUI | `x-ruuter-testing` header value for testing services | | `voorshpellhappilo` |
+| `application.apiRequestTestingKey` | Ruuter | Ruuter-side counterpart of the testing header | | `voorshpellhappilo` |
+| `REACT_APP_MULTI_CHOICE_QUESTION_MAX_BUTTONS` | GUI | Max buttons in a multiple-choice question | | `4` |
+| `REACT_APP_ENABLE_MULTI_DOMAIN` | GUI | Enables multi-domain support | | `FALSE` |
+| `SERVICE_VAULT_AGENT` | `constants.ini` | Vault Agent proxy URL | ✅ | `http://vault-agent-service-module:8205` |
+| `SERVICE_VAULT_SECRETS_PATH` | `constants.ini` | Vault KV prefix (`service-module/prod` or `service-module/test`) | ✅ | `service-module/prod` |
+
+The full list of GUI variables is in the `gui_dev` service of [`docker-compose.yml`](./docker-compose.yml).
+
+### Shared UI packages
+
+The header, navigation menu and base styles come from external packages declared in [`GUI/package.json`](./GUI/package.json):
+
+```json
+"@buerokratt-ria/header": "^0.1.57",
+"@buerokratt-ria/menu": "^0.2.15",
+"@buerokratt-ria/styles": "^0.0.1"
 ```
 
 ### Vault
 
-- Backend secrets (e.g. the Azure Search API key) are read from HashiCorp Vault through a Vault Agent, not from `constants.ini`
-- `docker compose up -d` also starts a local Vault (`service-module-vault`, `service-module-vault-init`, `vault-agent-service-module`), so Service Module runs standalone
-- When running together with Buerokratt-Chatbot's shared Vault, stop the local one first: `docker compose stop service-module-vault vault-agent-service-module`
-- To add a secret locally:
+Backend secrets (for example the Azure Search API key) are read from **HashiCorp Vault** through a Vault Agent, not from `constants.ini`. `docker compose up -d` starts a local Vault, so Service Module can run on its own.
 
-```
+To add a secret locally:
+
+```bash
 docker exec service-module-vault sh -c 'VAULT_TOKEN=$(awk "/^Initial Root Token:/ {print \$4}" /vault/data/init.txt) \
   vault kv put secret/service-module/prod/azure-search api_key=<key>'
 ```
 
-- Policies, covered flows, failure modes and verification are described in [VAULT README](./docs/vault.md)
+See the [Vault guide](./docs/vault.md) for policies, covered flows, failure modes and verification.
 
-### Kubernetes deployment
-
-For production deploying on kubernetes use this the variable [`REACT_APP_MENU_JSON`](https://github.com/buerokratt/NoOps/blob/dev/Kubernetes/Modules/Service-Module/templates/deployment-byk-services-gui.yaml) with the value:
-
-```
-"[{\"id\":\"conversations\",\"label\":{\"et\":\"Vestlused\",\"en\":\"Conversations\"},\"path\":\"/chat\",\"children\":[{\"label\":{\"et\":\"Vastamata\",\"en\":\"Unanswered\"},\"path\":\"/unanswered\"},{\"label\":{\"et\":\"Aktiivsed\",\"en\":\"Active\"},\"path\":\"/active\"},{\"label\":{\"et\":\"Ootel\",\"en\":\"Pending\"},\"path\":\"/pending\"},{\"label\":{\"et\":\"Ajalugu\",\"en\":\"History\"},\"path\":\"/history\"}]},{\"id\":\"training\",\"label\":{\"et\":\"Treening\",\"en\":\"Training\"},\"path\":\"/training\",\"children\":[{\"label\":{\"et\":\"Treening\",\"en\":\"Training\"},\"path\":\"/training\",\"children\":[{\"label\":{\"et\":\"Teemad\",\"en\":\"Themes\"},\"path\":\"/training/intents\"},{\"hidden\":true,\"label\":{\"et\":\"Avalikud teemad\",\"en\":\"Public themes\"},\"path\":\"/training/common-intents\"},{\"label\":{\"et\":\"Teemade järeltreenimine\",\"en\":\"Post training themes\"},\"path\":\"/training/intents-followup-training\"},{\"label\":{\"et\":\"Vastused\",\"en\":\"Answers\"},\"path\":\"/training/responses\"},{\"label\":{\"et\":\"Reeglid\",\"en\":\"Rules\"},\"path\":\"/training/rules\"},{\"hidden\":true,\"label\":{\"et\":\"Konfiguratsioon\",\"en\":\"Configuration\"},\"path\":\"/training/configuration\"},{\"label\":{\"et\":\"Vormid\",\"en\":\"Forms\"},\"path\":\"/training/forms\"},{\"label\":{\"et\":\"Mälukohad\",\"en\":\"Slots\"},\"path\":\"/training/slots\"},{\"hidden\":true,\"label\":{\"et\":\"Automatic Teenused\",\"en\":\"Automatic Services\"},\"path\":\"/auto-services\"}]},{\"label\":{\"et\":\"Ajaloolised vestlused\",\"en\":\"Historical conversations\"},\"path\":\"/history\",\"children\":[{\"label\":{\"et\":\"Ajalugu\",\"en\":\"History\"},\"path\":\"/history/history\"},{\"hidden\":true,\"label\":{\"et\":\"Pöördumised\",\"en\":\"Appeals\"},\"path\":\"/history/appeal\"}]},{\"label\":{\"et\":\"Mudelipank ja analüütika\",\"en\":\"Modelbank and analytics\"},\"path\":\"/analytics\",\"children\":[{\"label\":{\"et\":\"Teemade ülevaade\",\"en\":\"Overview of topics\"},\"path\":\"/analytics/overview\"},{\"label\":{\"et\":\"Mudelite võrdlus\",\"en\":\"Comparison of models\"},\"path\":\"/analytics/models\"},{\"hidden\":true,\"label\":{\"et\":\"Testlood\",\"en\":\"testTracks\"},\"path\":\"/analytics/testcases\"}]},{\"label\":{\"et\":\"Treeni uus mudel\",\"en\":\"Train new model\"},\"path\":\"/train-new-model\"}]},{\"id\":\"analytics\",\"label\":{\"et\":\"Analüütika\",\"en\":\"Analytics\"},\"path\":\"/analytics\",\"children\":[{\"label\":{\"et\":\"Ülevaade\",\"en\":\"Overview\"},\"path\":\"/overview\"},{\"label\":{\"et\":\"Vestlused\",\"en\":\"Chats\"},\"path\":\"/chats\"},{\"label\":{\"et\":\"Tagasiside\",\"en\":\"Feedback\"},\"path\":\"/feedback\"},{\"label\":{\"et\":\"Avaandmed\",\"en\":\"Reports\"},\"path\":\"/reports\"}]},{\"id\":\"services\",\"hidden\":true,\"label\":{\"et\":\"Teenused\",\"en\":\"Services\"},\"path\":\"/services\",\"children\":[{\"label\":{\"et\":\"Ülevaade\",\"en\":\"Overview\"},\"path\":\"/overview\"},{\"label\":{\"et\":\"Uus teenus\",\"en\":\"New Service\"},\"path\":\"/newService\"},{\"label\":{\"et\":\"Automatic Teenused\",\"en\":\"Automatic Services\"},\"path\":\"/auto-services\"},{\"label\":{\"et\":\"Probleemsed teenused\",\"en\":\"Faulty Services\"},\"path\":\"/faultyServices\"}]},{\"id\":\"settings\",\"label\":{\"et\":\"Haldus\",\"en\":\"Administration\"},\"path\":\"/settings\",\"children\":[{\"label\":{\"et\":\"Kasutajad\",\"en\":\"Users\"},\"path\":\"/users\"},{\"label\":{\"et\":\"Vestlusbot\",\"en\":\"Chatbot\"},\"path\":\"/chatbot\",\"children\":[{\"label\":{\"et\":\"Seaded\",\"en\":\"Settings\"},\"path\":\"/chatbot/settings\"},{\"label\":{\"et\":\"Tervitussõnum\",\"en\":\"Welcome message\"},\"path\":\"/chatbot/welcome-message\"},{\"label\":{\"et\":\"Välimus ja käitumine\",\"en\":\"Appearance and behavior\"},\"path\":\"/chatbot/appearance\"},{\"label\":{\"et\":\"Erakorralised teated\",\"en\":\"Emergency notices\"},\"path\":\"/chatbot/emergency-notices\"}]},{\"label\":{\"et\":\"Asutuse tööaeg\",\"en\":\"Office opening hours\"},\"path\":\"/working-time\"},{\"label\":{\"et\":\"Sessiooni pikkus\",\"en\":\"Session length\"},\"path\":\"/session-length\"}]},{\"id\":\"monitoring\",\"hidden\":true,\"label\":{\"et\":\"Seire\",\"en\":\"Monitoring\"},\"path\":\"/monitoring\",\"children\":[{\"label\":{\"et\":\"Aktiivaeg\",\"en\":\"Working hours\"},\"path\":\"/uptime\"}]}]"
-```
-
-like this:
-
-```
-            - name: REACT_APP_MENU_JSON
-              value: "[{\"id\":\"conversations\",\"label\":{\"et\":\"Vestlused\",\"en\":\"Conversations\"},\"path\":\"/chat\",\"children\":[{\"label\":{\"et\":\"Vastamata\",\"en\":\"Unanswered\"},\"path\":\"/unanswered\"},{\"label\":{\"et\":\"Aktiivsed\",\"en\":\"Active\"},\"path\":\"/active\"},{\"label\":{\"et\":\"Ootel\",\"en\":\"Pending\"},\"path\":\"/pending\"},{\"label\":{\"et\":\"Ajalugu\",\"en\":\"History\"},\"path\":\"/history\"}]},{\"id\":\"training\",\"label\":{\"et\":\"Treening\",\"en\":\"Training\"},\"path\":\"/training\",\"children\":[{\"label\":{\"et\":\"Treening\",\"en\":\"Training\"},\"path\":\"/training\",\"children\":[{\"label\":{\"et\":\"Teemad\",\"en\":\"Themes\"},\"path\":\"/training/intents\"},{\"hidden\":true,\"label\":{\"et\":\"Avalikud teemad\",\"en\":\"Public themes\"},\"path\":\"/training/common-intents\"},{\"label\":{\"et\":\"Teemade järeltreenimine\",\"en\":\"Post training themes\"},\"path\":\"/training/intents-followup-training\"},{\"label\":{\"et\":\"Vastused\",\"en\":\"Answers\"},\"path\":\"/training/responses\"},{\"label\":{\"et\":\"Reeglid\",\"en\":\"Rules\"},\"path\":\"/training/rules\"},{\"hidden\":true,\"label\":{\"et\":\"Konfiguratsioon\",\"en\":\"Configuration\"},\"path\":\"/training/configuration\"},{\"label\":{\"et\":\"Vormid\",\"en\":\"Forms\"},\"path\":\"/training/forms\"},{\"label\":{\"et\":\"Mälukohad\",\"en\":\"Slots\"},\"path\":\"/training/slots\"},{\"hidden\":true,\"label\":{\"et\":\"Automatic Teenused\",\"en\":\"Automatic Services\"},\"path\":\"/auto-services\"}]},{\"label\":{\"et\":\"Ajaloolised vestlused\",\"en\":\"Historical conversations\"},\"path\":\"/history\",\"children\":[{\"label\":{\"et\":\"Ajalugu\",\"en\":\"History\"},\"path\":\"/history/history\"},{\"hidden\":true,\"label\":{\"et\":\"Pöördumised\",\"en\":\"Appeals\"},\"path\":\"/history/appeal\"}]},{\"label\":{\"et\":\"Mudelipank ja analüütika\",\"en\":\"Modelbank and analytics\"},\"path\":\"/analytics\",\"children\":[{\"label\":{\"et\":\"Teemade ülevaade\",\"en\":\"Overview of topics\"},\"path\":\"/analytics/overview\"},{\"label\":{\"et\":\"Mudelite võrdlus\",\"en\":\"Comparison of models\"},\"path\":\"/analytics/models\"},{\"hidden\":true,\"label\":{\"et\":\"Testlood\",\"en\":\"testTracks\"},\"path\":\"/analytics/testcases\"}]},{\"label\":{\"et\":\"Treeni uus mudel\",\"en\":\"Train new model\"},\"path\":\"/train-new-model\"}]},{\"id\":\"analytics\",\"label\":{\"et\":\"Analüütika\",\"en\":\"Analytics\"},\"path\":\"/analytics\",\"children\":[{\"label\":{\"et\":\"Ülevaade\",\"en\":\"Overview\"},\"path\":\"/overview\"},{\"label\":{\"et\":\"Vestlused\",\"en\":\"Chats\"},\"path\":\"/chats\"},{\"label\":{\"et\":\"Tagasiside\",\"en\":\"Feedback\"},\"path\":\"/feedback\"},{\"label\":{\"et\":\"Avaandmed\",\"en\":\"Reports\"},\"path\":\"/reports\"}]},{\"id\":\"services\",\"hidden\":true,\"label\":{\"et\":\"Teenused\",\"en\":\"Services\"},\"path\":\"/services\",\"children\":[{\"label\":{\"et\":\"Ülevaade\",\"en\":\"Overview\"},\"path\":\"/overview\"},{\"label\":{\"et\":\"Uus teenus\",\"en\":\"New Service\"},\"path\":\"/newService\"},{\"label\":{\"et\":\"Automatic Teenused\",\"en\":\"Automatic Services\"},\"path\":\"/auto-services\"},{\"label\":{\"et\":\"Probleemsed teenused\",\"en\":\"Faulty Services\"},\"path\":\"/faultyServices\"}]},{\"id\":\"settings\",\"label\":{\"et\":\"Haldus\",\"en\":\"Administration\"},\"path\":\"/settings\",\"children\":[{\"label\":{\"et\":\"Kasutajad\",\"en\":\"Users\"},\"path\":\"/users\"},{\"label\":{\"et\":\"Vestlusbot\",\"en\":\"Chatbot\"},\"path\":\"/chatbot\",\"children\":[{\"label\":{\"et\":\"Seaded\",\"en\":\"Settings\"},\"path\":\"/chatbot/settings\"},{\"label\":{\"et\":\"Tervitussõnum\",\"en\":\"Welcome message\"},\"path\":\"/chatbot/welcome-message\"},{\"label\":{\"et\":\"Välimus ja käitumine\",\"en\":\"Appearance and behavior\"},\"path\":\"/chatbot/appearance\"},{\"label\":{\"et\":\"Erakorralised teated\",\"en\":\"Emergency notices\"},\"path\":\"/chatbot/emergency-notices\"}]},{\"label\":{\"et\":\"Asutuse tööaeg\",\"en\":\"Office opening hours\"},\"path\":\"/working-time\"},{\"label\":{\"et\":\"Sessiooni pikkus\",\"en\":\"Session length\"},\"path\":\"/session-length\"}]},{\"id\":\"monitoring\",\"hidden\":true,\"label\":{\"et\":\"Seire\",\"en\":\"Monitoring\"},\"path\":\"/monitoring\",\"children\":[{\"label\":{\"et\":\"Aktiivaeg\",\"en\":\"Working hours\"},\"path\":\"/uptime\"}]}]"
-```
-
-## Code quality
-
-### Formatting
+### OpenSearch
 
 ```bash
-npm run format         # Check if the code is formatted, without making changes
-npm run format:fix     # Format the code
+# Usage: ./deploy-opensearch.sh <URL> <AUTH> <IS_MOCK_ALLOWED=false>
+./DSL/OpenSearch/deploy-opensearch.sh http://localhost:9200 admin:admin true
 ```
 
-### Linting
+---
+
+## Development
+
+### GUI scripts
+
+Run these from the [`GUI/`](./GUI) directory:
+
+| Command | Description |
+| --- | --- |
+| `npm run dev` | Start the Vite dev server |
+| `npm run build` | Type-check and build for production |
+| `npm run lint` / `lint:fix` | Lint (zero warnings allowed) |
+| `npm run format` / `format:fix` | Check or apply Prettier formatting |
+| `npm run typecheck` | Run the TypeScript type check |
+| `npm test` | Run Vitest in watch mode |
+| `npm run test:run` | Run tests once |
+| `npm run test:coverage` | Run tests with coverage |
+| `npm run test:ui` | Open the Vitest UI |
+
+### Database
+
+To use the local services database:
+
+1. In `docker-compose.yml`, set the `resql` variable `sqlms.datasources.[0].jdbcUrl` to `jdbc:postgresql://database:5432/services_db`.
+2. Run the migrations:
+   ```bash
+   ./migrate.sh
+   ```
+3. Start the stack with `docker compose up -d`.
+
+To create a new migration, run the following. It creates a timestamped file with the required headers:
 
 ```bash
-npm run lint           # Check for linting issues, without making changes
-npm run lint:fix       # Automatically fix linting issues
+./create-migration.sh name-of-migration
 ```
 
-### Tests
-
-Tests are written in TypeScript (and the project should be migrated to TypeScript in the future too). Available npm scripts:
+<details>
+<summary><strong>Setting up the users database</strong></summary>
 
 ```bash
-npm test               # Run tests in watch mode
-npm run test:run       # Run tests once
-npm run test:coverage  # Run tests with coverage
+docker run --platform linux/amd64 --network=bykstack riaee/byk-users-db:liquibase20220615 \
+  --url=jdbc:postgresql://database:5432/users_db \
+  --username=byk --password=01234 \
+  --changelog-file=./master.yml update
 ```
 
-### SQL
+</details>
 
-The repository uses [SQLFluff](https://sqlfluff.com/) for linting and formatting SQL files. To use SQLFluff:
+### SQL linting
 
-1. Install SQLFluff: `pipx install sqlfluff`.
-2. Run `sqlfluff lint <some-path>`.
-3. Additionally, using an IDE extension is highly recommended. For [VSCode](https://marketplace.visualstudio.com/items?itemName=dorzey.vscode-sqlfluff) or [Jetbrains editors](https://plugins.jetbrains.com/plugin/20494-sqlfluff-linter-community-edition).
+SQL files are linted and formatted with [SQLFluff](https://sqlfluff.com/):
 
-## Environment variables
+```bash
+pipx install sqlfluff
+sqlfluff lint <path>
+```
 
-| Ruuter Variable                    | GUI Variable                               | Description                                          | Required | Default Value       |
-| ---------------------------------- | ------------------------------------------ | ---------------------------------------------------- | -------- | ------------------- |
-| `application.apiRequestTestingKey` | `REACT_APP_RUUTER_SERVICES_TESTING_HEADER` | `x-ruuter-testing` header value for testing services |          | `voorshpellhappilo` |
-| `SERVICE_VAULT_AGENT` (`constants.ini`) | | Service Module Vault Agent proxy URL | Yes | `http://vault-agent-service-module:8205` |
-| `SERVICE_VAULT_SECRETS_PATH` (`constants.ini`) | | Vault KV prefix for this environment (`service-module/prod` or `service-module/test`) | Yes | `service-module/prod` |
+IDE extensions: [VS Code](https://marketplace.visualstudio.com/items?itemName=dorzey.vscode-sqlfluff) · [JetBrains](https://plugins.jetbrains.com/plugin/20494-sqlfluff-linter-community-edition)
 
-## Intent Classification 
+---
 
-Flow is desribed in [INTENT CLASSIFICATION README](./docs/INTENT_CLASSIFICATION.MD)
+## Deployment
+
+Production deployments run on **Kubernetes** using the manifests in [buerokratt/NoOps](https://github.com/buerokratt/NoOps/tree/dev/Kubernetes/Modules/Service-Module).
+
+> [!NOTE]
+> The production navigation menu is configured through `REACT_APP_MENU_JSON` in the [GUI deployment template](https://github.com/buerokratt/NoOps/blob/dev/Kubernetes/Modules/Service-Module/templates/deployment-byk-services-gui.yaml). A reference value is in the commented-out production block of the `gui_dev` service in [`docker-compose.yml`](./docker-compose.yml).
+
+---
+
+## Troubleshooting
+
+<details>
+<summary><strong>Logging in locally through TIM</strong></summary>
+
+Locally, create the auth cookie by hand:
+
+1. Call the login endpoint:
+   ```bash
+   curl -X POST -H "Content-Type: application/json" \
+     -d '{"login": "EE30303039914", "password": "OK"}' \
+     http://localhost:8086/services/auth/login
+   ```
+2. In the browser, create a cookie named `customJwtCookie` with the returned value.
+
+</details>
+
+<details>
+<summary><strong>Running alongside Buerokratt-Chatbot's shared Vault</strong></summary>
+
+Stop the local Vault first so the two don't conflict:
+
+```bash
+docker compose stop service-module-vault vault-agent-service-module
+```
+
+</details>
+
+---
+
+## Documentation
+
+| Document | Description |
+| --- | --- |
+| [Vault](./docs/vault.md) | Secrets management, policies and failure modes |
+| [Intent Classification](./docs/INTENT_CLASSIFICATION.MD) | Intent classification flow |
+| [Endpoints](./docs/endpoints.md) | Service API endpoints |
+| [OpenSearch](./DSL/OpenSearch/README.md) | Index setup and mappings |
+| [Changelog](./CHANGELOG.md) | Version history |
+| [Release Notes](./RELEASE_NOTES.md) | Release highlights |
+
+---
+
+## Contributors
+
+<a href="https://github.com/buerokratt/Service-Module/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=buerokratt/Service-Module" alt="Contributors" />
+</a>
