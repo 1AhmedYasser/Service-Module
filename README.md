@@ -10,9 +10,6 @@
 ![Node](https://img.shields.io/badge/node-22.18-339933?logo=node.js&logoColor=white)
 ![React](https://img.shields.io/badge/react-Vite-61DAFB?logo=react&logoColor=black)
 
-<!-- TODO: add a screenshot or GIF of the service canvas -->
-<!-- <img src="docs/assets/service-canvas.png" alt="Service Module canvas" width="800" /> -->
-
 </div>
 
 ---
