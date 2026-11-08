@@ -327,6 +327,18 @@ sqlfluff lint <path>
 
 IDE extensions: [VS Code](https://marketplace.visualstudio.com/items?itemName=dorzey.vscode-sqlfluff) · [JetBrains](https://plugins.jetbrains.com/plugin/20494-sqlfluff-linter-community-edition)
 
+### CI checks
+
+Every pull request that touches `GUI/` or `.github/` runs these checks in [GitHub Actions](./.github/workflows/run-checks.yml). Run them locally from `GUI/` before pushing:
+
+| Check | Command |
+| --- | --- |
+| Formatting | `npm run format` |
+| Linting | `npm run lint` |
+| Unit tests | `npm run test:run` |
+| Type check | `npm run typecheck` |
+| Docker build | `docker image build .` (non-draft PRs only) |
+
 ---
 
 ## Deployment
