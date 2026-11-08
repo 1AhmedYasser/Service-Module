@@ -1,6 +1,7 @@
 import { Edge, Node, useReactFlow } from '@xyflow/react';
 import useServiceStore from 'store/new-services.store';
 import { Step, StepType } from 'types';
+import { omitResponseSchema } from 'utils/flow-response-data';
 import { generateUniqueId, getNodeLabel } from 'utils/flow-utils';
 
 function useEdgeAdd(id: string) {
@@ -35,7 +36,7 @@ function useEdgeAdd(id: string) {
           : 'step',
         stepType: stepType,
         readonly: [StepType.Auth, StepType.FinishingStepEnd, StepType.FinishingStepRedirect].includes(stepType),
-        endpoint: step.data,
+        endpoint: step.data ? omitResponseSchema(step.data) : undefined,
         setClickedNode: useServiceStore.getState().setClickedNode,
       },
       className: (() => {

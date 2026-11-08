@@ -8,6 +8,7 @@ import { StepType } from 'types';
 import { EndpointResponseVariable } from 'types/endpoint/endpoint-response-variables';
 import { NodeDataProps } from 'types/service-flow';
 import { getHelperTooltips } from 'utils/constants';
+import { withResolvedAssignData } from 'utils/flow-response-data';
 import { getTypeColor, isObject } from 'utils/object-util';
 import { stringToTemplate, templateToString } from 'utils/string-util';
 import { v4 } from 'uuid';
@@ -134,7 +135,9 @@ const PreviousVariables: FC<PreviousVariablesProps> = ({ node }) => {
       },
     ];
 
-    setAssignedVariables([...assignElements, ...predefinedInputElements, ...newAssignElements]);
+    setAssignedVariables(
+      withResolvedAssignData([...assignElements, ...predefinedInputElements, ...newAssignElements], endpointsVariables),
+    );
   }, [edges, endpointsVariables, newAssignElements, node.id, nodes, serviceName]);
 
   function getParentNode(nodes: Node[], edges: Edge[], node: Node): Node | undefined {

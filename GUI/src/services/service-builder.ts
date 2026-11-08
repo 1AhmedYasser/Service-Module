@@ -10,6 +10,7 @@ import useToastStore from 'store/toasts.store';
 import { StepType } from 'types';
 import { Assign } from 'types/assign';
 import { NodeDataProps } from 'types/service-flow';
+import { sanitizeFlowNode } from 'utils/flow-response-data';
 import { getEndpointResultName, getMcqNodeId } from 'utils/flow-utils';
 import {
   decodeHtmlEntities,
@@ -402,7 +403,7 @@ async function saveService(
       content: content,
       structure: JSON.stringify({
         edges: edges.map(({ selected: _selected, ...edge }) => edge),
-        nodes: nodes.map(({ selected: _selected, ...node }) => node),
+        nodes: nodes.map(({ selected: _selected, ...node }) => sanitizeFlowNode(node)),
       }),
       updateServiceDb: updateServiceDb,
       state: status,

@@ -545,4 +545,40 @@ describe('saveFlow', () => {
     expect(onError).toHaveBeenCalledWith(error);
     expect(onSuccess).not.toHaveBeenCalled();
   });
+
+  it('saves the flow without API responses or endpoint copies', async () => {
+    vi.mocked(api.post).mockClear();
+    vi.mocked(api.post).mockResolvedValueOnce({ data: {} });
+    const endpoint = {
+      endpointId: 'e1',
+      name: 'Words',
+      definitions: [{ id: 'd1', url: 'https://example.com', methodType: 'GET' }],
+      responseSchema: JSON.stringify([{ words: ['a', 'b'] }]),
+    };
+    const assignElement = {
+      id: 'a1',
+      key: 'words',
+      value: '${Words_res.response.body.words}',
+      data: ['a', 'b'],
+    };
+    const nodes = [
+      { id: 'api', type: 'custom', position: { x: 0, y: 0 }, data: { stepType: StepType.UserDefined, endpoint } },
+      {
+        id: 'assign',
+        type: 'custom',
+        position: { x: 0, y: 0 },
+        data: { stepType: StepType.Assign, endpoint, assignElements: [assignElement] },
+      },
+    ] as unknown as Node<NodeDataProps>[];
+
+    await saveFlow({ ...saveConfig(), nodes });
+
+    const body = vi.mocked(api.post).mock.calls[0][1] as { structure: string };
+    const saved = JSON.parse(body.structure) as { nodes: Node<NodeDataProps>[] };
+    expect(body.structure).not.toContain('responseSchema');
+    expect(saved.nodes[0].data.endpoint?.definitions).toEqual(endpoint.definitions);
+    expect(saved.nodes[1].data).not.toHaveProperty('endpoint');
+    expect(saved.nodes[1].data.assignElements?.[0]).toMatchObject({ value: assignElement.value, data: [] });
+    expect(nodes[0].data.endpoint?.responseSchema).toBe(endpoint.responseSchema);
+  });
 });

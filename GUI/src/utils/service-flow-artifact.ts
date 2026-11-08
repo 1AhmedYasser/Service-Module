@@ -2,6 +2,7 @@ import { Edge, Node } from '@xyflow/react';
 import useServiceStore from 'store/new-services.store';
 import { Service } from 'types';
 import { FlowData, NodeDataProps, ServiceExportSettings } from 'types/service-flow';
+import { sanitizeFlowNodes } from 'utils/flow-response-data';
 
 export const isValidFlowData = (data: unknown): data is FlowData =>
   !!data &&
@@ -47,13 +48,14 @@ export const serializeFlowArtifact = (
   nodes: Node<NodeDataProps>[] | Node[],
   edges: Edge[],
   settings?: ServiceExportSettings,
-): string => JSON.stringify({ nodes, edges, ...(settings ? { settings } : {}) });
+): string => JSON.stringify({ nodes: sanitizeFlowNodes(nodes as Node[]), edges, ...(settings ? { settings } : {}) });
 
 export const parseFlowArtifact = (
   content: string,
 ): { nodes: FlowData['nodes']; edges: FlowData['edges']; settings?: ServiceExportSettings } => {
   const parsed = JSON.parse(content) as FlowData;
-  return { nodes: parsed.nodes, edges: parsed.edges, settings: parsed.settings };
+  const nodes = Array.isArray(parsed.nodes) ? sanitizeFlowNodes(parsed.nodes) : parsed.nodes;
+  return { nodes, edges: parsed.edges, settings: parsed.settings };
 };
 
 export const buildExportPayloadFromService = (service: Service): string => {

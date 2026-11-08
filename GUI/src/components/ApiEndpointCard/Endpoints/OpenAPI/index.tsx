@@ -28,6 +28,7 @@ type EndpointOpenAPIProps = {
   onTestSuccess?: (payload: TestPayload) => void;
   onDescriptionChange?: (description: string) => void;
   onMandatoryViolationChange?: (hasViolation: boolean) => void;
+  responseSchema?: string;
 };
 
 const EndpointOpenAPI: React.FC<EndpointOpenAPIProps> = ({
@@ -41,6 +42,7 @@ const EndpointOpenAPI: React.FC<EndpointOpenAPIProps> = ({
   onTestSuccess,
   onDescriptionChange,
   onMandatoryViolationChange,
+  responseSchema,
 }) => {
   const [openApiUrl, setOpenApiUrl] = useState<string>(endpoint?.definitions[0]?.openApiUrl ?? '');
   const [description, setDescription] = useState<string>(() => {
@@ -55,10 +57,18 @@ const EndpointOpenAPI: React.FC<EndpointOpenAPIProps> = ({
   const [key, setKey] = useState<number>(0);
   const [isTesting, setIsTesting] = useState(false);
   const [isFetchingEndpoints, setIsFetchingEndpoints] = useState(false);
-  const [responseContent, setResponseContent] = useState<string | null>(endpoint.responseSchema ?? null);
-  const [isResponseOpen, setIsResponseOpen] = useState(!!endpoint.responseSchema);
+  const [responseContent, setResponseContent] = useState<string | null>(
+    endpoint.responseSchema ?? responseSchema ?? null,
+  );
+  const [isResponseOpen, setIsResponseOpen] = useState(!!(endpoint.responseSchema ?? responseSchema));
   const { t } = useTranslation();
   const theme = useTheme();
+
+  useEffect(() => {
+    if (!responseSchema) return;
+    setResponseContent(responseSchema);
+    setIsResponseOpen(true);
+  }, [responseSchema]);
 
   // Adding "key" dependency breaks focus in variable inputs
 

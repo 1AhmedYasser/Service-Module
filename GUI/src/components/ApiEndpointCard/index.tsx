@@ -23,6 +23,7 @@ type EndpointCardProps = {
   onTypeChange?: (type: string) => void;
   onDescriptionChange?: (description: string) => void;
   onMandatoryViolationChange?: (hasViolation: boolean) => void;
+  responseSchema?: string;
 };
 
 const ApiEndpointCard: FC<EndpointCardProps> = ({
@@ -35,6 +36,7 @@ const ApiEndpointCard: FC<EndpointCardProps> = ({
   onTypeChange,
   onDescriptionChange,
   onMandatoryViolationChange,
+  responseSchema,
 }) => {
   const { changeServiceEndpointType, getAvailableRequestValues } = useServiceStore();
   const { t } = useTranslation();
@@ -137,6 +139,7 @@ const ApiEndpointCard: FC<EndpointCardProps> = ({
                   onTestSuccess={onTestSuccess}
                   onDescriptionChange={onDescriptionChange}
                   onMandatoryViolationChange={onMandatoryViolationChange}
+                  responseSchema={responseSchema}
                 />
               )}
               {option?.value === 'custom' && (
@@ -149,6 +152,7 @@ const ApiEndpointCard: FC<EndpointCardProps> = ({
                   onTestSuccess={onTestSuccess}
                   onDescriptionChange={onDescriptionChange}
                   onMandatoryViolationChange={onMandatoryViolationChange}
+                  responseSchema={responseSchema}
                 />
               )}
             </Track>

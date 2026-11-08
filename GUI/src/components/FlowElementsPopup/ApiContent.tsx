@@ -11,9 +11,10 @@ type ApiContentProps = {
   readonly node: Node<NodeDataProps>;
   readonly endpoint: EndpointData | undefined;
   readonly onEndpointChange?: (endpoint: EndpointData) => void;
+  readonly responseSchema?: string;
 };
 
-const ApiContent: FC<ApiContentProps> = ({ node, endpoint, onEndpointChange }) => {
+const ApiContent: FC<ApiContentProps> = ({ node, endpoint, onEndpointChange, responseSchema }) => {
   const endpointCopy = useMemo(() => {
     return endpoint ? (JSON.parse(JSON.stringify(endpoint)) as EndpointData) : undefined;
   }, [endpoint]);
@@ -30,6 +31,7 @@ const ApiContent: FC<ApiContentProps> = ({ node, endpoint, onEndpointChange }) =
         <ApiEndpointCard
           endpoint={endpointCopy}
           showCommonSwitch={false}
+          responseSchema={responseSchema}
           onNameChange={(name) => {
             endpointCopy.name = name;
           }}

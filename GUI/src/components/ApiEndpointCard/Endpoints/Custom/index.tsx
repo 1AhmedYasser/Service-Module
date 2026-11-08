@@ -31,6 +31,7 @@ type EndpointCustomProps = {
   onTestSuccess?: (payload: TestPayload) => void;
   onDescriptionChange?: (description: string) => void;
   onMandatoryViolationChange?: (hasViolation: boolean) => void;
+  responseSchema?: string;
 };
 
 const EndpointCustom: React.FC<EndpointCustomProps> = ({
@@ -42,14 +43,23 @@ const EndpointCustom: React.FC<EndpointCustomProps> = ({
   onTestSuccess,
   onDescriptionChange,
   onMandatoryViolationChange,
+  responseSchema,
 }) => {
   const { t } = useTranslation();
   const [key, setKey] = useState<number>(0);
   const { setEndpoints } = useServiceStore();
   const ref = useRef<HTMLInputElement>(null);
   const [isTesting, setIsTesting] = useState(false);
-  const [responseContent, setResponseContent] = useState<string | null>(endpoint.responseSchema ?? null);
-  const [isResponseOpen, setIsResponseOpen] = useState(!!endpoint.responseSchema);
+  const [responseContent, setResponseContent] = useState<string | null>(
+    endpoint.responseSchema ?? responseSchema ?? null,
+  );
+  const [isResponseOpen, setIsResponseOpen] = useState(!!(endpoint.responseSchema ?? responseSchema));
+
+  useEffect(() => {
+    if (!responseSchema) return;
+    setResponseContent(responseSchema);
+    setIsResponseOpen(true);
+  }, [responseSchema]);
 
   // initial endpoint data
   if (endpoint.definitions.length === 0) {

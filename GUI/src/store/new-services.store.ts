@@ -44,6 +44,7 @@ import {
 } from 'types/request-variables';
 import { initialEdges, initialNodes, NodeDataProps } from 'types/service-flow';
 import { getFlowCompletenessMessageKeys, validateFlowCompleteness } from 'utils/flow-completeness';
+import { sanitizeFlowNode } from 'utils/flow-response-data';
 import { getEndpointResultName, getEndpointResultNameChanges, replaceEndpointResultNames } from 'utils/flow-utils';
 import { formatSchema } from 'utils/json-request-utils';
 import { v4 as uuid } from 'uuid';
@@ -369,6 +370,8 @@ const useServiceStore = create<ServiceStoreState>((set, get) => ({
         const variable: EndpointResponseVariable = {
           name: endpoint?.name ?? '',
           nodeId: endpointNodes[i].id,
+          resultName,
+          response: res,
           chips: chips,
         };
 
@@ -444,6 +447,7 @@ const useServiceStore = create<ServiceStoreState>((set, get) => ({
       discoverable: false,
       secrets: { prod: [], test: [] },
       availableVariables: { prod: [], test: [] },
+      endpointsResponseVariables: [],
       reactFlowInstance: null,
       selectedTab: EndpointEnv.Live,
       isNewService: true,
@@ -500,7 +504,7 @@ const useServiceStore = create<ServiceStoreState>((set, get) => ({
       if (!endpoints || !Array.isArray(endpoints)) endpoints = [];
 
       nodes = nodes.map((node: any) => {
-        const rest = omitSelected(stripNodeHighlight(node as Node));
+        const rest = sanitizeFlowNode(omitSelected(stripNodeHighlight(node as Node)));
         if (rest.type !== 'custom') return rest;
         rest.data = {
           ...rest.data,

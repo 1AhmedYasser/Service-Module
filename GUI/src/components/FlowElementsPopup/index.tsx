@@ -12,9 +12,14 @@ import { EndpointData } from 'types/endpoint';
 import { JumpToService } from 'types/jump-to-service';
 import { MultiChoiceQuestionButton } from 'types/multi-choice-question';
 import { NodeDataProps } from 'types/service-flow';
+import {
+  getResponseBoxContent,
+  getResponseRoots,
+  resolveAssignValueData,
+  sanitizeFlowNode,
+} from 'utils/flow-response-data';
 import { getMcqNodeId, isStepNameTaken } from 'utils/flow-utils';
-import { getValueByPath } from 'utils/object-util';
-import { isTemplate, removeTrailingUnderscores, stringToTemplate, templateToString } from 'utils/string-util';
+import { isTemplate, removeTrailingUnderscores, stringToTemplate } from 'utils/string-util';
 
 import { Button, Track } from '..';
 import Popup from '../Popup';
@@ -52,14 +57,16 @@ const FlowElementsPopup: React.FC = () => {
   const endpointsVariables = useServiceStore((state) => state.endpointsResponseVariables);
   const storeEndpoints = useServiceStore((state) => state.endpoints);
 
-  const enrichedNodeEndpoint = useMemo(() => {
-    const ep = node?.data?.endpoint;
-    if (!ep) return ep;
-    const storeEp = storeEndpoints.find((e) => e.endpointId === ep.endpointId);
-    const responseSchema = ep.responseSchema ?? storeEp?.responseSchema;
-    return responseSchema ? { ...ep, responseSchema } : ep;
-  }, [node?.data?.endpoint, storeEndpoints]);
   const stepType = node?.data.stepType;
+  const nodeId = node?.id;
+  const nodeEndpointId = node?.data?.endpoint?.endpointId;
+
+  const responseBoxContent = useMemo(() => {
+    if (stepType !== StepType.UserDefined) return undefined;
+    const liveResponse = endpointsVariables.find((variable) => variable.nodeId === nodeId)?.response;
+    const registryResponse = storeEndpoints.find((e) => e.endpointId === nodeEndpointId)?.responseSchema;
+    return getResponseBoxContent(liveResponse, registryResponse);
+  }, [stepType, nodeId, nodeEndpointId, endpointsVariables, storeEndpoints]);
 
   const mcqNodeNumber = useMemo(() => String(node ? getMcqNodeId(node.data) : 1), [node]);
 
@@ -184,6 +191,7 @@ const FlowElementsPopup: React.FC = () => {
     setIsSaveEnabled(true);
     setDynamicChoices(defaultDynamicChoices);
     setJumpToService(defaultJumpToService);
+    setNodeEndpoint(undefined);
     useServiceStore.getState().resetSelectedNode();
     useServiceStore.getState().resetRules();
     useServiceStore.getState().resetAssign();
@@ -233,12 +241,12 @@ const FlowElementsPopup: React.FC = () => {
       prepareAssignForSaving(updatedNode);
     }
 
-    useServiceStore.getState().handlePopupSave(updatedNode);
+    useServiceStore.getState().handlePopupSave(sanitizeFlowNode(updatedNode));
     onClose();
   };
 
   const prepareAssignForSaving = (updatedNode: Node<NodeDataProps>) => {
-    const flatEndpointVariables = endpointsVariables.flatMap((endpoint) => endpoint.chips);
+    const responseRoots = getResponseRoots(endpointsVariables);
     assignElements.forEach((element) => {
       const key = removeTrailingUnderscores(element.key);
       element.key = key;
@@ -249,23 +257,8 @@ const FlowElementsPopup: React.FC = () => {
         return;
       }
 
-      const fullPath = templateToString(element.value);
-      const endpointVariable = flatEndpointVariables.find((variable) => fullPath.startsWith(String(variable.value)));
-
-      if (!endpointVariable) {
-        // Element is not an object so no data for ObjectTree
-        return;
-      }
-
-      const value = String(endpointVariable.value);
-      const remainingPath = fullPath.substring(
-        fullPath[value.length] === '['
-          ? // Uses array notation, e.g. endpointVariable[1].something; needed for backwards compatibility
-            value.length
-          : // Uses object notation, e.g. endpointVariable.1.something
-            value.length + 1,
-      );
-      element.data = remainingPath ? getValueByPath(endpointVariable.data, remainingPath) : endpointVariable.data;
+      const resolvedData = resolveAssignValueData(element.value, responseRoots);
+      if (resolvedData !== undefined) element.data = resolvedData;
     });
     updatedNode.data.assignElements = assignElements;
   };
@@ -517,7 +510,8 @@ const FlowElementsPopup: React.FC = () => {
             {stepType === StepType.UserDefined && (
               <ApiContent
                 node={node}
-                endpoint={enrichedNodeEndpoint}
+                endpoint={node.data.endpoint}
+                responseSchema={responseBoxContent}
                 onEndpointChange={(endpoint) => {
                   if (!endpoint) return;
                   setNodeEndpoint(endpoint);

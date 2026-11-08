@@ -10,6 +10,7 @@
 import { createEndpoint, updateEndpoint } from 'resources/api-constants';
 import api from 'services/api-dev';
 import { EndpointData } from 'types/endpoint';
+import { omitResponseSchema } from 'utils/flow-response-data';
 
 function normalizeEndpointVariableTypes(endpoint: EndpointData): void {
   for (const definition of endpoint.definitions ?? []) {
@@ -37,12 +38,13 @@ export async function persistEndpoints(endpoints: EndpointData[], serviceId: str
     if (!hasSelectedDefinition) continue;
 
     normalizeEndpointVariableTypes(endpoint);
+    const payload = omitResponseSchema(endpoint);
 
     if (endpoint.isNew) {
       tasks.push(
         api
           .post(createEndpoint(), {
-            ...endpoint,
+            ...payload,
             serviceId,
             description: endpoint.description ?? '',
             definitions: JSON.stringify(endpoint.definitions),
@@ -54,7 +56,7 @@ export async function persistEndpoints(endpoints: EndpointData[], serviceId: str
     } else {
       tasks.push(
         api.post(updateEndpoint(endpoint.endpointId), {
-          ...endpoint,
+          ...payload,
           serviceId,
           description: endpoint.description ?? '',
           definitions: JSON.stringify(endpoint.definitions),
