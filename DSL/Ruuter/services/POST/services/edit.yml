@@ -280,7 +280,16 @@ delete_from_storage_edit:
           container: "[#STORAGE_FERRY_CONTAINER]"
           fileName: "${old_storage_file_name}.json"
   result: ferry_delete_result
-  next: trigger_azure_indexer_after_delete_edit
+  error: check_delete_from_storage_edit
+  next: check_delete_from_storage_edit
+
+check_delete_from_storage_edit:
+  switch:
+    - condition: ${200 <= ferry_delete_result.response.statusCodeValue && ferry_delete_result.response.statusCodeValue < 300}
+      next: trigger_azure_indexer_after_delete_edit
+    - condition: ${ferry_delete_result.response.statusCodeValue === 404}
+      next: after_delete_from_storage_edit
+  next: return_storage_delete_failed
 
 trigger_azure_indexer_after_delete_edit:
   template: "[#SERVICE_PROJECT_LAYER]/trigger-azure-indexer"
@@ -380,4 +389,9 @@ return_incorrect_request:
 return_name_already_exists:
   status: 409
   return: "Service name already exists"
+  next: end
+
+return_storage_delete_failed:
+  status: 500
+  return: "Failed to delete service from storage"
   next: end
