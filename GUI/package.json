@@ -5,7 +5,7 @@
   "private": true,
   "dependencies": {
     "@buerokratt-ria/header": "^0.1.57",
-    "@buerokratt-ria/menu": "^0.2.15",
+    "@buerokratt-ria/menu": "^0.2.16",
     "@buerokratt-ria/styles": "^0.0.1",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/modifiers": "^9.0.0",
