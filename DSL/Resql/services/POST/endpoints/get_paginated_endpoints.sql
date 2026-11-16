@@ -11,6 +11,9 @@ SELECT
   response_schema_captured AS schema_captured,
   response_schema,
   llm_index_status,
+  llm_index_failure_reason,
+  llm_index_attempt_no,
+  llm_index_started_at,
   CASE WHEN :pagination THEN CEIL(COUNT(*) OVER() / :page_size::DECIMAL) ELSE 1 END AS total_pages
 FROM endpoints
 WHERE deleted IS FALSE

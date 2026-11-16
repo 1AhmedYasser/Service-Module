@@ -1,7 +1,7 @@
 declaration:
   call: declare
   version: 0.1
-  description: "Triggers LLM service enriching for a service. Used by manual re-index and service activation flow."
+  description: "Starts an LLM service indexing (enrich) attempt. Used by manual re-index and service activation. Returns 202 when the job is queued; the final result arrives later via llm/index-callback."
   method: post
   accepts: json
   returns: json
@@ -11,24 +11,6 @@ declaration:
       - field: serviceId
         type: string
         description: "Service UUID to index"
-      - field: name
-        type: string
-        description: "Service name"
-      - field: description
-        type: string
-        description: "Service description"
-      - field: examples
-        type: array
-        description: "Example queries"
-      - field: entities
-        type: array
-        description: "Expected entity names"
-      - field: type
-        type: string
-        description: "HTTP method (GET/POST)"
-      - field: state
-        type: string
-        description: "Service state (active/inactive/draft)"
     headers:
       - field: cookie
         type: string
@@ -43,67 +25,155 @@ check_required:
     - condition: ${serviceId == null || serviceId === ''}
       next: return_bad_request
 
-mark_in_progress:
+# Indexing uses the latest saved service data at the moment the attempt starts.
+fetch_service:
   call: http.post
   args:
-    url: "[#SERVICE_RESQL]/services/update_service_llm_sync_status"
+    url: "[#SERVICE_RESQL]/get-service-by-id"
+    body:
+      id: ${serviceId}
+  result: service_result
+
+check_service_found:
+  switch:
+    - condition: ${service_result.response.body == null || service_result.response.body.length === 0}
+      next: return_not_found
+
+assign_service:
+  assign:
+    service: ${service_result.response.body[0]}
+
+# Validation runs before the attempt starts, so an invalid request keeps the existing indexing status.
+validate_metadata:
+  switch:
+    - condition: ${service.state !== 'active'}
+      next: assign_not_active
+    - condition: ${service.name == null || String(service.name).trim() === ''}
+      next: assign_name_missing
+    - condition: ${service.description == null || String(service.description).trim() === ''}
+      next: assign_description_missing
+  next: start_attempt
+
+assign_not_active:
+  assign:
+    validation_error:
+      code: "VALIDATION_SERVICE_NOT_ACTIVE"
+      message: "Only active services can be indexed"
+  next: log_validation_failure
+
+assign_name_missing:
+  assign:
+    validation_error:
+      code: "VALIDATION_NAME_MISSING"
+      message: "Indexing needs a service name"
+  next: log_validation_failure
+
+assign_description_missing:
+  assign:
+    validation_error:
+      code: "VALIDATION_DESCRIPTION_MISSING"
+      message: "Indexing needs a service description"
+  next: log_validation_failure
+
+log_validation_failure:
+  log: "LLM indexing not started for service ${serviceId}: ${validation_error.code}"
+  next: return_validation_error
+
+start_attempt:
+  call: http.post
+  args:
+    url: "[#SERVICE_RESQL]/services/start_service_llm_index_attempt"
     body:
       serviceId: ${serviceId}
-      status: IN_PROGRESS
-  result: in_progress_res
+  result: start_res
+
+check_attempt_started:
+  switch:
+    - condition: ${start_res.response.body == null || start_res.response.body.length === 0}
+      next: return_not_found
+
+assign_attempt:
+  assign:
+    attemptNo: ${start_res.response.body[0].llmIndexAttemptNo}
 
 call_llm_enrich:
   call: http.post
   args:
-    url: "[#LLM_RUUTER_PUBLIC]/services/enrich"
+    url: "[#LLM_RUUTER_PRIVATE]/services/enrich"
     body:
       service_id: ${serviceId}
-      name: ${incoming.body.name}
-      description: ${incoming.body.description}
-      examples: ${incoming.body.examples}
-      entities: ${incoming.body.entities}
-      ruuter_type: ${incoming.body.type}
-      current_state: ${incoming.body.state}
+      name: ${service.name}
+      description: ${service.description}
+      examples: ${service.examples ?? []}
+      entities: ${service.entities ?? []}
+      ruuter_type: ${service.type ?? 'GET'}
+      current_state: ${service.state}
+      attemptNo: ${attemptNo}
   result: llm_enrich_result
 
 check_llm_enrich_result:
   switch:
     - condition: ${llm_enrich_result != null && llm_enrich_result.response != null && 200 <= llm_enrich_result.response.statusCodeValue && llm_enrich_result.response.statusCodeValue < 300 && llm_enrich_result.response.body.response.success === true}
-      next: mark_indexed
-  next: mark_failed_llm_call
+      next: log_submitted
+  next: assign_submission_failure
 
-mark_indexed:
+log_submitted:
+  log: "LLM indexing submitted for service ${serviceId}, attempt ${attemptNo}"
+  next: assign_accepted_response
+
+assign_accepted_response:
+  assign:
+    accepted_response:
+      message: "Indexing started"
+      attemptNo: ${attemptNo}
+  next: return_accepted
+
+assign_submission_failure:
+  assign:
+    failureReason: "${'Submission to LLM module failed (HTTP ' + (llm_enrich_result != null && llm_enrich_result.response != null ? llm_enrich_result.response.statusCodeValue : 'unknown') + ')'}"
+
+mark_submission_failed:
   call: http.post
   args:
-    url: "[#SERVICE_RESQL]/services/update_service_llm_sync_status"
+    url: "[#SERVICE_RESQL]/services/complete_service_llm_index_attempt"
     body:
       serviceId: ${serviceId}
-      status: SUCCESS
-  result: update_res
-  next: return_ok
+      attemptNo: ${attemptNo}
+      status: "FAILED"
+      failureReason: ${failureReason}
+  result: mark_failed_res
 
-mark_failed_llm_call:
-  call: http.post
-  args:
-    url: "[#SERVICE_RESQL]/services/update_service_llm_sync_status"
-    body:
-      serviceId: ${serviceId}
-      status: FAILED
-  result: update_res
-  next: log_llm_failure
+log_submission_failure:
+  log: "LLM indexing failed for service ${serviceId}, attempt ${attemptNo}: ${failureReason}"
+  next: assign_failed_response
 
-log_llm_failure:
-  log: "LLM indexing failed for service ${serviceId}"
+assign_failed_response:
+  assign:
+    failed_response:
+      code: "SUBMISSION_FAILED"
+      message: ${failureReason}
   next: return_failed
 
-return_ok:
+return_accepted:
+  status: 202
+  return: ${accepted_response}
+  next: end
+
+# HTTP 200 on purpose: Ruuter drops the response body of non-2xx replies between flows,
+# so callers could not read the validation code. Callers detect it by the VALIDATION_ code.
+return_validation_error:
   status: 200
-  return: "Service enrichment job queued successfully. Processing asynchronously."
+  return: ${validation_error}
   next: end
 
 return_failed:
   status: 500
-  return: "LLM indexing failed"
+  return: ${failed_response}
+  next: end
+
+return_not_found:
+  status: 404
+  return: "Service not found, LLM indexing skipped"
   next: end
 
 return_bad_request:

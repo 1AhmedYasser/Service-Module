@@ -28,9 +28,16 @@ function normalizeEndpointVariableTypes(endpoint: EndpointData): void {
  *
  * @param endpoints  Endpoints to save. Mutated in-place (isNew cleared, serviceId set).
  * @param serviceId  The service that owns these endpoints. Pass `''` for global/registry endpoints.
+ * @returns          Indexing validation warning codes (e.g. VALIDATION_DESCRIPTION_MISSING). Saving
+ *                   succeeded in that case, but LLM indexing was not started.
  */
-export async function persistEndpoints(endpoints: EndpointData[], serviceId: string): Promise<void> {
+export async function persistEndpoints(endpoints: EndpointData[], serviceId: string): Promise<string[]> {
   const tasks: Promise<any>[] = [];
+  const indexWarnings: string[] = [];
+  const collectIndexWarning = (res: any) => {
+    const warning = res?.data?.response?.indexWarning;
+    if (typeof warning === 'string' && warning) indexWarnings.push(warning);
+  };
 
   for (const endpoint of endpoints) {
     const hasSelectedDefinition = endpoint.definitions.some((d) => d.isSelected);
@@ -47,21 +54,25 @@ export async function persistEndpoints(endpoints: EndpointData[], serviceId: str
             description: endpoint.description ?? '',
             definitions: JSON.stringify(endpoint.definitions),
           })
-          .then(() => {
+          .then((res) => {
             endpoint.isNew = false;
+            collectIndexWarning(res);
           }),
       );
     } else {
       tasks.push(
-        api.post(updateEndpoint(endpoint.endpointId), {
-          ...endpoint,
-          serviceId,
-          description: endpoint.description ?? '',
-          definitions: JSON.stringify(endpoint.definitions),
-        }),
+        api
+          .post(updateEndpoint(endpoint.endpointId), {
+            ...endpoint,
+            serviceId,
+            description: endpoint.description ?? '',
+            definitions: JSON.stringify(endpoint.definitions),
+          })
+          .then(collectIndexWarning),
       );
     }
   }
 
   await Promise.all(tasks);
+  return indexWarnings;
 }

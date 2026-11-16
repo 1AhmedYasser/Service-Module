@@ -60,6 +60,25 @@ assign_id_code:
   assign:
     idCode: ${res.response.body.idCode}
 
+# Fail indexing attempts that exceeded the timeout before reading, so the list (and GUI polling)
+# never shows an attempt as Processing indefinitely.
+timeout_llm_index_attempts:
+  call: http.post
+  args:
+    url: "[#SERVICE_RESQL]/services/timeout_service_llm_index_attempts"
+    body: {}
+  result: timeout_res
+
+check_timed_out:
+  switch:
+    - condition: ${timeout_res.response.body != null && timeout_res.response.body.length > 0}
+      next: log_timed_out
+  next: get_services_list
+
+log_timed_out:
+  log: "LLM indexing failed (Indexing timed out after 15 minutes) for services: ${JSON.stringify(timeout_res.response.body)}"
+  next: get_services_list
+
 get_services_list:
   call: http.post
   args:

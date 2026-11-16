@@ -1,0 +1,176 @@
+declaration:
+  call: declare
+  version: 0.1
+  description: "Callback from the LLM module reporting the final result (SUCCESS/FAILED) of an indexing attempt. Called service-to-service, no user cookie. Always answers 200 for well-formed payloads, including stale results that are ignored."
+  method: post
+  accepts: json
+  returns: json
+  namespace: service
+  allowlist:
+    body:
+      - field: entityType
+        type: string
+        description: "ENDPOINT | SERVICE"
+      - field: entityId
+        type: string
+        description: "Endpoint UUID or service ID"
+      - field: attemptNo
+        type: number
+        description: "Attempt number sent in the indexing request, echoed back"
+      - field: status
+        type: string
+        description: "SUCCESS | FAILED"
+      - field: failureReason
+        type: string
+        description: "Failure reason, null on success"
+
+assign_values:
+  assign:
+    entityType: ${incoming.body.entityType}
+    entityId: ${incoming.body.entityId}
+    attemptNo: ${incoming.body.attemptNo}
+    status: ${incoming.body.status}
+    failureReason: ${incoming.body.failureReason ?? null}
+
+validate_body:
+  switch:
+    - condition: ${entityId == null || entityId === '' || attemptNo == null || isNaN(Number(attemptNo))}
+      next: log_invalid_payload
+    - condition: ${status !== 'SUCCESS' && status !== 'FAILED'}
+      next: log_invalid_payload
+
+route_by_entity:
+  switch:
+    - condition: ${entityType === 'ENDPOINT'}
+      next: complete_endpoint_attempt
+    - condition: ${entityType === 'SERVICE'}
+      next: complete_service_attempt
+  next: log_invalid_payload
+
+# Only the current IN_PROGRESS attempt is updated; anything else (older attempt, duplicate,
+# already timed out) returns no row and is checked for outdated content below.
+complete_service_attempt:
+  call: http.post
+  args:
+    url: "[#SERVICE_RESQL]/services/complete_service_llm_index_attempt"
+    body:
+      serviceId: ${entityId}
+      attemptNo: ${Number(attemptNo)}
+      status: ${status}
+      # Ruuter cannot send null body fields; the SQL turns '' back into NULL.
+      failureReason: ${failureReason ?? ''}
+  result: complete_service_res
+
+check_service_applied:
+  switch:
+    - condition: ${complete_service_res.response.body != null && complete_service_res.response.body.length > 0}
+      next: log_applied
+  next: get_service_state
+
+complete_endpoint_attempt:
+  call: http.post
+  args:
+    url: "[#SERVICE_RESQL]/endpoints/complete_endpoint_llm_index_attempt"
+    body:
+      endpointId: ${entityId}
+      attemptNo: ${Number(attemptNo)}
+      status: ${status}
+      # Ruuter cannot send null body fields; the SQL turns '' back into NULL.
+      failureReason: ${failureReason ?? ''}
+  result: complete_res
+
+check_applied:
+  switch:
+    - condition: ${complete_res.response.body != null && complete_res.response.body.length > 0}
+      next: log_applied
+  next: get_endpoint_state
+
+log_applied:
+  log: "LLM index callback applied: ${entityType} ${entityId}, attempt ${attemptNo}, status ${status}, reason ${failureReason}"
+  next: return_ok
+
+# The result belongs to an older attempt (or the attempt already finished / timed out).
+get_endpoint_state:
+  call: http.post
+  args:
+    url: "[#SERVICE_RESQL]/endpoints/get_endpoint_llm_index_state"
+    body:
+      endpointId: ${entityId}
+  result: state_res
+  next: assign_current_state
+
+get_service_state:
+  call: http.post
+  args:
+    url: "[#SERVICE_RESQL]/services/get_service_llm_index_state"
+    body:
+      serviceId: ${entityId}
+  result: state_res
+  next: assign_current_state
+
+assign_current_state:
+  assign:
+    current_state: "${state_res.response.body != null && state_res.response.body.length > 0 ? state_res.response.body[0] : null}"
+
+# A stale SUCCESS that arrives after a newer attempt already succeeded means the old job wrote its
+# (older) content to the index after the newer one. The index no longer matches the latest saved data,
+# so the item is marked FAILED with a clear reason and the user can Reindex. No automatic re-index.
+check_outdated_content:
+  switch:
+    - condition: ${status === 'SUCCESS' && current_state != null && current_state.llmIndexStatus === 'SUCCESS' && current_state.llmIndexAttemptNo != null && Number(attemptNo) < Number(current_state.llmIndexAttemptNo)}
+      next: assign_outdated_reason
+  next: log_ignored
+
+assign_outdated_reason:
+  assign:
+    outdated_reason: "Indexed content was overwritten by an older attempt. Please reindex."
+
+route_mark_outdated:
+  switch:
+    - condition: ${entityType === 'SERVICE'}
+      next: mark_service_outdated
+  next: mark_endpoint_outdated
+
+mark_endpoint_outdated:
+  call: http.post
+  args:
+    url: "[#SERVICE_RESQL]/endpoints/mark_endpoint_llm_index_outdated"
+    body:
+      endpointId: ${entityId}
+      attemptNo: ${Number(current_state.llmIndexAttemptNo)}
+      failureReason: ${outdated_reason}
+  result: outdated_res
+  next: log_outdated
+
+mark_service_outdated:
+  call: http.post
+  args:
+    url: "[#SERVICE_RESQL]/services/mark_service_llm_index_outdated"
+    body:
+      serviceId: ${entityId}
+      attemptNo: ${Number(current_state.llmIndexAttemptNo)}
+      failureReason: ${outdated_reason}
+  result: outdated_res
+  next: log_outdated
+
+log_outdated:
+  log: "LLM indexing failed for ${entityType} ${entityId}, attempt ${current_state.llmIndexAttemptNo}: ${outdated_reason} (late SUCCESS from attempt ${attemptNo})"
+  next: return_ok
+
+log_ignored:
+  log: "Stale LLM index callback ignored: ${entityType} ${entityId}, attempt ${attemptNo}, status ${status}"
+  next: return_ok
+
+log_invalid_payload:
+  log: "Invalid LLM index callback payload: type ${entityType}, id ${entityId}, attempt ${attemptNo}, status ${status}"
+  next: return_bad_request
+
+return_ok:
+  status: 200
+  return: "Callback processed"
+  next: end
+
+return_bad_request:
+  status: 400
+  return: "Invalid callback payload"
+  next: end

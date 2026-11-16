@@ -24,6 +24,25 @@ declaration:
         type: string
         description: "Body field 'search'"
 
+# Fail indexing attempts that exceeded the timeout before reading, so the list (and GUI polling)
+# never shows an attempt as Processing indefinitely.
+timeout_llm_index_attempts:
+  call: http.post
+  args:
+    url: "[#SERVICE_RESQL]/endpoints/timeout_endpoint_llm_index_attempts"
+    body: {}
+  result: timeout_res
+
+check_timed_out:
+  switch:
+    - condition: ${timeout_res.response.body != null && timeout_res.response.body.length > 0}
+      next: log_timed_out
+  next: get_paginated_endpoints
+
+log_timed_out:
+  log: "LLM indexing failed (Indexing timed out after 15 minutes) for endpoints: ${JSON.stringify(timeout_res.response.body)}"
+  next: get_paginated_endpoints
+
 get_paginated_endpoints:
   call: http.post
   args:

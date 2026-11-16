@@ -31,7 +31,12 @@ interface ApiRegistryState {
   pagination: PaginationState;
   sorting: SortingState;
   search: string;
-  loadEndpoints: (pagination: PaginationState, sorting: SortingState, search: string) => Promise<void>;
+  loadEndpoints: (
+    pagination: PaginationState,
+    sorting: SortingState,
+    search: string,
+    options?: { silent?: boolean },
+  ) => Promise<void>;
   testEndpoint: (endpoint: EndpointData) => Promise<void>;
   copyEndpoint: (endpoint: EndpointData) => Promise<void>;
   deleteEndpoint: (endpoint: EndpointData) => Promise<void>;
@@ -39,6 +44,37 @@ interface ApiRegistryState {
   addEndpointAfterCreate: (endpoint: EndpointData) => void;
   updateEndpointInList: (endpoint: EndpointData) => void;
 }
+
+/** Shows the toast for an indexing validation error code returned by the backend (e.g. VALIDATION_DESCRIPTION_MISSING). */
+export const showIndexValidationToast = (code: string): void => {
+  useToastStore.getState().error({
+    title: t(`apiRegistry.indexValidation.${code}`, { defaultValue: t('apiRegistry.reIndexError') }),
+  });
+};
+
+// Attempts whose failure was already announced in this session, keyed by `${endpointId}:${attemptNo}`.
+// Ensures each new failure produces exactly one toast, and reloads never re-announce existing failures.
+const announcedIndexFailures = new Set<string>();
+
+// A failure is "new" when the row was seen before on this page and either was IN_PROGRESS,
+// or a newer attempt has failed already (e.g. submission failed during save). Rows seen for the
+// first time (initial load, reload, other page) are never announced.
+const announceNewIndexFailures = (previous: EndpointData[], next: EndpointData[]): void => {
+  const previousById = new Map(previous.map((e) => [e.endpointId, e]));
+  for (const endpoint of next) {
+    const before = previousById.get(endpoint.endpointId);
+    if (endpoint.llm_index_status !== 'FAILED' || !before) continue;
+    const isNewAttempt = (endpoint.llm_index_attempt_no ?? 0) > (before.llm_index_attempt_no ?? 0);
+    if (before.llm_index_status !== 'IN_PROGRESS' && !isNewAttempt) continue;
+    const key = `${endpoint.endpointId}:${endpoint.llm_index_attempt_no ?? ''}`;
+    if (announcedIndexFailures.has(key)) continue;
+    announcedIndexFailures.add(key);
+    useToastStore.getState().error({
+      title: t('apiRegistry.indexFailed', { name: endpoint.name }),
+      message: endpoint.llm_index_failure_reason ?? undefined,
+    });
+  }
+};
 
 const useApiRegistryStore = create<ApiRegistryState>((set, get) => ({
   endpoints: [],
@@ -49,8 +85,9 @@ const useApiRegistryStore = create<ApiRegistryState>((set, get) => ({
   sorting: [{ id: 'created_at', desc: true }],
   search: '',
 
-  loadEndpoints: async (pagination, sorting, search) => {
-    set({ loading: true, pagination, sorting, search });
+  loadEndpoints: async (pagination, sorting, search, options) => {
+    const silent = options?.silent ?? false;
+    set(silent ? { pagination, sorting, search } : { loading: true, pagination, sorting, search });
     try {
       const order = sorting[0]?.desc ? 'desc' : 'asc';
       const colId = sorting[0]?.id;
@@ -99,6 +136,8 @@ const useApiRegistryStore = create<ApiRegistryState>((set, get) => ({
           definitions,
           responseSchema: formatSchema(row.responseSchema),
           llm_index_status: allowed,
+          llm_index_failure_reason: row.llmIndexFailureReason ?? row.llm_index_failure_reason ?? null,
+          llm_index_attempt_no: row.llmIndexAttemptNo ?? row.llm_index_attempt_no ?? null,
         };
       });
       const verificationMap: Record<string, VerificationMetadata> = {};
@@ -116,10 +155,12 @@ const useApiRegistryStore = create<ApiRegistryState>((set, get) => ({
           };
         }
       });
+      announceNewIndexFailures(get().endpoints, endpoints);
       set({ endpoints, verificationMap, totalPages, loading: false });
     } catch {
       set({ loading: false });
-      useToastStore.getState().error({ title: t('apiRegistry.loadError') });
+      // Background polling failures are silent; the next poll retries.
+      if (!silent) useToastStore.getState().error({ title: t('apiRegistry.loadError') });
     }
   },
 
@@ -262,33 +303,41 @@ const useApiRegistryStore = create<ApiRegistryState>((set, get) => ({
   },
 
   reIndexEndpoint: async (endpointId) => {
-    // Optimistically show IN_PROGRESS immediately while request is in-flight
-    set((state) => ({
-      endpoints: state.endpoints.map((e) =>
-        e.endpointId === endpointId ? { ...e, llm_index_status: 'IN_PROGRESS' } : e,
-      ),
-    }));
-
-    let failed = false;
-    let serverMsg = '';
+    // 202 = attempt started (row is IN_PROGRESS in the DB). The final result arrives via the LLM callback
+    // and is picked up by polling. A submission failure is already persisted as FAILED with a reason
+    // and announced by the failure toast after reload, so it needs no extra toast here.
+    let validationCode: string | null = null;
+    let requestFailed = false;
     try {
       await api.post(reindexEndpointUrl(), { endpointId });
     } catch (err: any) {
-      failed = true;
-      serverMsg = err?.response?.data?.message || err?.response?.data?.response || err?.message || '';
-    } finally {
-      // Always reload — backend is the source of truth for the final status
-      const { pagination, sorting, search } = get();
-      await get().loadEndpoints(pagination, sorting, search);
+      const body = err?.response?.data?.response;
+      if (err?.response?.status === 400 && typeof body?.code === 'string') {
+        validationCode = body.code;
+      } else {
+        requestFailed = true;
+      }
     }
 
-    if (failed) {
-      useToastStore.getState().error({
-        title: t('apiRegistry.reIndexError'),
-        message: serverMsg || undefined,
-      });
-    } else {
+    if (!validationCode) {
+      // Show Processing right away; the reload below confirms the persisted status
+      set((state) => ({
+        endpoints: state.endpoints.map((e) =>
+          e.endpointId === endpointId ? { ...e, llm_index_status: 'IN_PROGRESS' } : e,
+        ),
+      }));
+    }
+
+    // Always reload — backend is the source of truth for the status
+    const { pagination, sorting, search } = get();
+    await get().loadEndpoints(pagination, sorting, search, { silent: true });
+
+    if (validationCode) {
+      showIndexValidationToast(validationCode);
+    } else if (!requestFailed) {
       useToastStore.getState().success({ title: t('apiRegistry.reIndexSuccess') });
+    } else if (get().endpoints.find((e) => e.endpointId === endpointId)?.llm_index_status !== 'FAILED') {
+      useToastStore.getState().error({ title: t('apiRegistry.reIndexError') });
     }
   },
 

@@ -1,7 +1,7 @@
 declaration:
   call: declare
   version: 0.1
-  description: "Wrapper for manual re-index triggered from the UI. Fetches the service, validates it's active, then calls service-index-llm as a sub-flow and handles crashes (e.g. LLM service unreachable) by writing FAILED to the DB"
+  description: "Manual re-index triggered from the UI. Checks the service is active and discoverable, then calls service-index-llm, which owns all indexing status changes, and passes its result through: 202 started, 400 validation error, 404 not found, 500 submission failed."
   method: post
   accepts: json
   returns: json
@@ -42,15 +42,16 @@ assign_service:
   assign:
     service: ${service_result.response.body[0]}
 
+# Eligibility checks keep the existing indexing status (no attempt is started).
 check_service_active:
   switch:
     - condition: ${service.state !== 'active'}
-      next: return_not_active
+      next: assign_not_active
 
 check_service_discoverable:
   switch:
     - condition: ${service.discoverable !== true}
-      next: return_not_discoverable
+      next: assign_not_discoverable
 
 call_index_llm:
   call: http.post
@@ -60,42 +61,68 @@ call_index_llm:
       cookie: ${incoming.headers.cookie}
     body:
       serviceId: ${serviceId}
-      name: ${service.name}
-      description: ${service.description}
-      examples: ${service.examples}
-      entities: ${service.entities}
-      type: ${service.type}
-      state: ${service.state}
   result: index_llm_result
+
+assign_index_result:
+  assign:
+    index_status_code: "${index_llm_result != null && index_llm_result.response != null ? index_llm_result.response.statusCodeValue : 500}"
+    index_body: "${index_llm_result != null && index_llm_result.response != null && index_llm_result.response.body != null ? index_llm_result.response.body.response : null}"
 
 check_index_llm_result:
   switch:
-    - condition: ${index_llm_result != null && index_llm_result.response != null && 200 <= index_llm_result.response.statusCodeValue && index_llm_result.response.statusCodeValue < 300}
-      next: return_ok
-  next: mark_llm_sync_failed
+    - condition: ${index_body != null && index_body.code != null && String(index_body.code).startsWith('VALIDATION_')}
+      next: return_validation_error
+    - condition: ${200 <= index_status_code && index_status_code < 300}
+      next: return_accepted
+    - condition: ${index_status_code === 404}
+      next: return_not_found
+  next: check_index_crashed
 
-mark_llm_sync_failed:
+# When the LLM module is unreachable, Ruuter aborts the indexing flow after the attempt started
+# (a connection error cannot be caught inside that flow), so it returns 5xx and the attempt would
+# stay IN_PROGRESS until the timeout. Mark it FAILED here; a result already recorded is not touched.
+check_index_crashed:
+  switch:
+    - condition: ${index_llm_result != null && index_llm_result.response != null && index_llm_result.response.statusCodeValue >= 500}
+      next: mark_index_unreachable
+  next: log_reindex_failure
+
+mark_index_unreachable:
   call: http.post
   args:
-    url: "[#SERVICE_RESQL]/services/update_service_llm_sync_status"
+    url: "[#SERVICE_RESQL]/services/mark_service_llm_index_unreachable"
     body:
       serviceId: ${serviceId}
-      status: FAILED
-  result: update_sync_res
+      failureReason: "LLM module is not reachable. Please try again later."
+  result: mark_unreachable_res
   next: log_reindex_failure
 
 log_reindex_failure:
-  log: "Re-index failed for service ${serviceId}"
+  log: "Re-index failed for service ${serviceId} (HTTP ${index_status_code})"
   next: return_failed
 
-return_ok:
-  status: 200
-  return: "Service re-indexed started"
+assign_not_active:
+  assign:
+    index_body:
+      code: "VALIDATION_SERVICE_NOT_ACTIVE"
+      message: "Only active services can be indexed"
+  next: return_validation_error
+
+assign_not_discoverable:
+  assign:
+    index_body:
+      code: "VALIDATION_SERVICE_NOT_DISCOVERABLE"
+      message: "Service is not discoverable, LLM indexing skipped"
+  next: return_validation_error
+
+return_accepted:
+  status: 202
+  return: ${index_body}
   next: end
 
-return_failed:
-  status: 500
-  return: "Re-index failed"
+return_validation_error:
+  status: 400
+  return: ${index_body}
   next: end
 
 return_not_found:
@@ -103,14 +130,9 @@ return_not_found:
   return: "Service not found, re-index skipped"
   next: end
 
-return_not_active:
-  status: 400
-  return: "Service is not active, LLM indexing skipped"
-  next: end
-
-return_not_discoverable:
-  status: 400
-  return: "Service is not discoverable, LLM indexing skipped"
+return_failed:
+  status: 500
+  return: ${index_body ?? 'Re-index failed'}
   next: end
 
 return_bad_request:

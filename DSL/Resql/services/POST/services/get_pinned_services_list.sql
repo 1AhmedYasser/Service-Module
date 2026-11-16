@@ -8,6 +8,8 @@ SELECT
   s.ruuter_type AS type,
   s.slot,
   s.llm_index_status AS index_status,
+  s.llm_index_failure_reason AS index_failure_reason,
+  s.llm_index_attempt_no AS index_attempt_no,
   d_in.incoming_count,
   d_out.outgoing_count,
   d_out.outgoing_problems AS problem_count

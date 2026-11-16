@@ -9,6 +9,8 @@ import useApiRegistryStore from '../store/api-registry.store';
 import useToastStore from '../store/toasts.store';
 import ApiRegistryTable from './ApiRegistryPage/ApiRegistryTable';
 
+const INDEX_STATUS_POLL_INTERVAL_MS = 5000;
+
 const ApiRegistryPage: React.FC = () => {
   const { t } = useTranslation();
   const [deleteEndpoint, setDeleteEndpoint] = useState<EndpointData | null>(null);
@@ -35,6 +37,19 @@ const ApiRegistryPage: React.FC = () => {
     };
     void load();
   }, [loadEndpoints, pagination, sorting, search]);
+
+  // Forget rows when leaving the page, so failures that happened while away are not announced on return
+  useEffect(() => () => useApiRegistryStore.setState({ endpoints: [] }), []);
+
+  // While any attempt is Processing, poll so the indexing status updates without a page refresh
+  const hasIndexingInProgress = endpoints.some((e) => e.llm_index_status === 'IN_PROGRESS');
+  useEffect(() => {
+    if (!hasIndexingInProgress) return;
+    const timer = setInterval(() => {
+      void loadEndpoints(pagination, sorting, search, { silent: true });
+    }, INDEX_STATUS_POLL_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [hasIndexingInProgress, loadEndpoints, pagination, sorting, search]);
 
   const handlePageChange = useCallback(
     (state: PaginationState) => {

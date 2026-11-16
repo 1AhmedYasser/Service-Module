@@ -30,6 +30,8 @@ export interface Service {
   readonly totalPages: number;
   readonly totalCount?: number;
   readonly indexStatus?: ServiceIndexStatus | null;
+  readonly indexFailureReason?: string | null;
+  readonly indexAttemptNo?: number | null;
   readonly incomingCount?: number;
   readonly outgoingCount?: number;
   readonly problemCount?: number;

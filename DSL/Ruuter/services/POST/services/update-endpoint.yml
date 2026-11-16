@@ -64,29 +64,40 @@ call_index_llm:
       endpointId: ${id}
   result: index_llm_result
 
-check_index_llm_result:
+# When the LLM module is unreachable, Ruuter aborts the indexing flow after the attempt started
+# (a connection error cannot be caught inside that flow), so it returns 5xx and the attempt would
+# stay IN_PROGRESS until the timeout. Mark it FAILED here; a result already recorded is not touched.
+check_index_crashed:
   switch:
-    - condition: ${index_llm_result != null && index_llm_result.response != null && 200 <= index_llm_result.response.statusCodeValue && index_llm_result.response.statusCodeValue < 300}
-      next: return_ok
-  next: mark_llm_sync_failed
+    - condition: ${index_llm_result != null && index_llm_result.response != null && index_llm_result.response.statusCodeValue >= 500}
+      next: mark_index_unreachable
+  next: assign_index_warning
 
-mark_llm_sync_failed:
+mark_index_unreachable:
   call: http.post
   args:
-    url: "[#SERVICE_RESQL]/endpoints/update_endpoint_llm_sync_status"
+    url: "[#SERVICE_RESQL]/endpoints/mark_endpoint_llm_index_unreachable"
     body:
       endpointId: ${id}
-      status: FAILED
-  result: update_sync_res
-  next: log_index_llm_failure
+      failureReason: "LLM module is not reachable. Please try again later."
+  result: mark_unreachable_res
+  next: assign_index_warning
 
-log_index_llm_failure:
-  log: "Warning: LLM indexing failed for endpoint ${id}"
-  next: return_ok
+# Indexing never blocks saving. index-llm owns all indexing status changes; here we only
+# surface a validation warning (e.g. missing description) so the GUI can show a toast.
+assign_index_warning:
+  assign:
+    index_warning: "${index_llm_result != null && index_llm_result.response != null && index_llm_result.response.body != null && index_llm_result.response.body.response != null && index_llm_result.response.body.response.code != null && String(index_llm_result.response.body.response.code).startsWith('VALIDATION_') ? index_llm_result.response.body.response.code : ''}"
+
+assign_response:
+  assign:
+    update_response:
+      message: "Endpoint updated"
+      indexWarning: ${index_warning}
 
 return_ok:
   status: 200
-  return: "Endpoint updated"
+  return: ${update_response}
   next: end
 
 return_no_type_error:

@@ -245,19 +245,51 @@ call_llm_index:
       cookie: ${incoming.headers.cookie}
     body:
       serviceId: ${id}
-      name: ${name}
-      description: ${service_data_result.response.body[0].description}
-      examples: ${service_data_result.response.body[0].examples}
-      entities: ${service_data_result.response.body[0].entities}
-      type: ${ruuter_type}
-      state: ${new_state}
   result: llm_enrich_result
   error: llm_enrich_error
-  next: return_ok
+  next: check_index_crashed
+
+# When the LLM module is unreachable, Ruuter aborts the indexing flow after the attempt started
+# (a connection error cannot be caught inside that flow), so it returns 5xx and the attempt would
+# stay IN_PROGRESS until the timeout. Mark it FAILED here; a result already recorded is not touched.
+check_index_crashed:
+  switch:
+    - condition: ${llm_enrich_result != null && llm_enrich_result.response != null && llm_enrich_result.response.statusCodeValue >= 500}
+      next: mark_index_unreachable
+  next: assign_index_warning
+
+mark_index_unreachable:
+  call: http.post
+  args:
+    url: "[#SERVICE_RESQL]/services/mark_service_llm_index_unreachable"
+    body:
+      serviceId: ${id}
+      failureReason: "LLM module is not reachable. Please try again later."
+  result: mark_unreachable_res
+  next: assign_index_warning
+
+# Indexing never blocks activation. service-index-llm owns all indexing status changes; here we only
+# surface a validation warning (e.g. missing description) so the GUI can show a toast.
+assign_index_warning:
+  assign:
+    index_warning: "${llm_enrich_result != null && llm_enrich_result.response != null && llm_enrich_result.response.body != null && llm_enrich_result.response.body.response != null && llm_enrich_result.response.body.response.code != null && String(llm_enrich_result.response.body.response.code).startsWith('VALIDATION_') ? llm_enrich_result.response.body.response.code : ''}"
+
+assign_activated_response:
+  assign:
+    activated_response:
+      message: "Status Changed Successfully"
+      indexWarning: ${index_warning}
+  next: return_ok_activated
+
+return_ok_activated:
+  reloadDsl: true
+  status: 200
+  return: ${activated_response}
+  next: end
 
 llm_enrich_error:
   log: "Error occurred while calling LLM enrich service for service id: ${id}"
-  next: return_ok
+  next: check_index_crashed
 
 deactivate_service:
   call: http.post
