@@ -1,7 +1,25 @@
+import {
+  closestCenter,
+  DndContext,
+  DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import { restrictToParentElement, restrictToVerticalAxis } from '@dnd-kit/modifiers';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import FormError from 'components/FormElements/FormError';
-import { FC, useRef, useState } from 'react';
+import { FC, ReactNode, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { MdCheck, MdDeleteOutline, MdEdit } from 'react-icons/md';
+import { MdCheck, MdDeleteOutline, MdDragIndicator, MdEdit } from 'react-icons/md';
 import ReactQuill from 'react-quill-new';
 import useServiceStore from 'store/new-services.store';
 import useServiceListStore from 'store/services.store';
@@ -17,6 +35,40 @@ import PreviousVariables from './PreviousVariables';
 import './styles.scss';
 
 const maxButtons = Number.parseInt((import.meta.env.REACT_APP_MULTI_CHOICE_QUESTION_MAX_BUTTONS as string) ?? '4');
+
+const SortableButtonRow: FC<{ id: string; dragLabel: string; children: ReactNode }> = ({ id, dragLabel, children }) => {
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
+    id,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className="mcq-button-row"
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        zIndex: isDragging ? 1 : undefined,
+        position: 'relative',
+        width: '100%',
+      }}
+    >
+      <Track gap={8} align="center" style={{ width: '100%' }}>
+        <button
+          type="button"
+          ref={setActivatorNodeRef}
+          className="mcq-button-row__handle"
+          aria-label={dragLabel}
+          {...attributes}
+          {...listeners}
+        >
+          <Icon icon={<MdDragIndicator size={20} />} size="medium" />
+        </button>
+        {children}
+      </Track>
+    </div>
+  );
+};
 
 export interface MultiChoiceQuestionContentProps {
   question: string;
@@ -42,6 +94,10 @@ const MultiChoiceQuestionContent: FC<MultiChoiceQuestionContentProps> = ({
   const serviceName = useServiceStore((state) => removeTrailingUnderscores(state.serviceNameDashed()));
   const selectedService = useServiceListStore((state) => state.selectedService);
   const quillRef = useRef<ReactQuill>(null);
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
 
   const mcqNodeNumber = String(node ? getMcqNodeId(node.data) : 1);
 
@@ -85,6 +141,19 @@ const MultiChoiceQuestionContent: FC<MultiChoiceQuestionContentProps> = ({
     setIsSaveEnabled(newButtons.length > 1 && newButtons.every((btn) => btn.title.length > 0));
   };
 
+  const handleDragEnd = ({ active, over }: DragEndEvent) => {
+    if (!over || active.id === over.id) return;
+    const oldIndex = buttons.findIndex((btn) => btn.id === active.id);
+    const newIndex = buttons.findIndex((btn) => btn.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+    const newButtons = arrayMove(buttons, oldIndex, newIndex);
+    if (editIndex !== null) {
+      setEditIndex(newButtons.findIndex((btn) => btn.id === buttons[editIndex].id));
+    }
+    setButtons(newButtons);
+    setIsSaveEnabled(newButtons.length > 1 && newButtons.every((btn) => btn.title.length > 0));
+  };
+
   const handleAdd = () => {
     const newButtons = [
       ...buttons,
@@ -112,64 +181,73 @@ const MultiChoiceQuestionContent: FC<MultiChoiceQuestionContentProps> = ({
         )}
         <div style={{ marginTop: 16 }}>
           <div style={{ fontWeight: 500 }}>{t('serviceFlow.multiChoiceQuestion.userChoices')}</div>
-          <Track direction="vertical" gap={8} style={{ marginTop: 8 }}>
-            {buttons.map((btn, idx) => (
-              <Track key={btn.id} gap={8} align="center" style={{ width: '100%' }}>
-                {editIndex === idx ? (
-                  <>
-                    <FormInput
-                      name={`button-title-${idx}`}
-                      label=""
-                      placeholder={t('serviceFlow.multiChoiceQuestion.ellipsis')}
-                      value={editValue}
-                      onChange={(e) => setEditValue(e.target.value)}
-                      autoFocus
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleEditSave(idx);
-                        if (e.key === 'Escape') setEditIndex(null);
-                      }}
-                      style={{ minWidth: 120, flex: 1 }}
-                      hideLabel
-                    />
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext items={buttons.map((btn) => btn.id)} strategy={verticalListSortingStrategy}>
+              <Track direction="vertical" gap={8} style={{ marginTop: 8 }}>
+                {buttons.map((btn, idx) => (
+                  <SortableButtonRow key={btn.id} id={btn.id} dragLabel={t('serviceFlow.multiChoiceQuestion.reorder')}>
+                    {editIndex === idx ? (
+                      <>
+                        <FormInput
+                          name={`button-title-${idx}`}
+                          label=""
+                          placeholder={t('serviceFlow.multiChoiceQuestion.ellipsis')}
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleEditSave(idx);
+                            if (e.key === 'Escape') setEditIndex(null);
+                          }}
+                          style={{ minWidth: 120, flex: 1 }}
+                          hideLabel
+                        />
+                        <Button
+                          appearance="icon"
+                          size="s"
+                          onClick={() => handleEditSave(idx)}
+                          aria-label={t('global.save')}
+                        >
+                          <Icon icon={<MdCheck />} size="medium" />
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <div style={{ minWidth: 120, flex: 1 }}>
+                          <Button disabled className="multiple-choice-question-button">
+                            <span className="multiple-choice-question-button__text">
+                              {btn.title.length > 0 ? btn.title : t('serviceFlow.multiChoiceQuestion.ellipsis')}
+                            </span>
+                          </Button>
+                        </div>
+                        <Button
+                          appearance="icon"
+                          size="s"
+                          onClick={() => handleEdit(idx)}
+                          aria-label={t('serviceFlow.multiChoiceQuestion.edit')}
+                        >
+                          <Icon icon={<MdEdit />} size="medium" />
+                        </Button>
+                      </>
+                    )}
                     <Button
                       appearance="icon"
                       size="s"
-                      onClick={() => handleEditSave(idx)}
-                      aria-label={t('global.save')}
+                      onClick={() => handleDelete(idx)}
+                      aria-label={t('serviceFlow.multiChoiceQuestion.delete')}
                     >
-                      <Icon icon={<MdCheck />} size="medium" />
+                      <Icon icon={<MdDeleteOutline />} size="medium" />
                     </Button>
-                  </>
-                ) : (
-                  <>
-                    <div style={{ minWidth: 120, flex: 1 }}>
-                      <Button disabled className="multiple-choice-question-button">
-                        <span className="multiple-choice-question-button__text">
-                          {btn.title.length > 0 ? btn.title : t('serviceFlow.multiChoiceQuestion.ellipsis')}
-                        </span>
-                      </Button>
-                    </div>
-                    <Button
-                      appearance="icon"
-                      size="s"
-                      onClick={() => handleEdit(idx)}
-                      aria-label={t('serviceFlow.multiChoiceQuestion.edit')}
-                    >
-                      <Icon icon={<MdEdit />} size="medium" />
-                    </Button>
-                  </>
-                )}
-                <Button
-                  appearance="icon"
-                  size="s"
-                  onClick={() => handleDelete(idx)}
-                  aria-label={t('serviceFlow.multiChoiceQuestion.delete')}
-                >
-                  <Icon icon={<MdDeleteOutline />} size="medium" />
-                </Button>
+                  </SortableButtonRow>
+                ))}
               </Track>
-            ))}
-          </Track>
+            </SortableContext>
+          </DndContext>
           <Track gap={8} style={{ marginTop: 12 }}>
             <Button
               appearance="secondary"

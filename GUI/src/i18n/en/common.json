@@ -662,6 +662,7 @@
       "ellipsis": "...",
       "edit": "Edit",
       "delete": "Delete",
+      "reorder": "Drag to reorder",
       "userChoices": "User choices:"
     },
     "tabs": {

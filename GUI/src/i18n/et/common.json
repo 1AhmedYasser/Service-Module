@@ -663,6 +663,7 @@
       "ellipsis": "...",
       "edit": "Muuda",
       "delete": "Kustuta",
+      "reorder": "Lohista järjekorra muutmiseks",
       "userChoices": "Lõppkasutaja valikud:"
     },
     "tabs": {

@@ -198,6 +198,22 @@ li:not(:has(> div > div)) .object-tree-chip {
   overflow: hidden !important;
 }
 
+.mcq-button-row__handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: get-color(sapphire-blue-10);
+  cursor: grab;
+  touch-action: none;
+
+  &:active {
+    cursor: grabbing;
+  }
+}
+
 .multiple-choice-question-button__text {
   overflow: hidden;
   text-overflow: ellipsis;

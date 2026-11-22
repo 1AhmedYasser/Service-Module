@@ -233,7 +233,16 @@ const FlowElementsPopup: React.FC = () => {
       prepareAssignForSaving(updatedNode);
     }
 
+    const isMcqOrderChanged =
+      stepType === StepType.MultiChoiceQuestion &&
+      (node.data.multiChoiceQuestion?.buttons ?? []).map((btn) => btn.id).join() !==
+        multiChoiceQuestionButtons.map((btn) => btn.id).join();
+
     useServiceStore.getState().handlePopupSave(updatedNode);
+    if (isMcqOrderChanged) {
+      useServiceStore.getState().setHasUnsavedChanges(true);
+      setTimeout(() => useServiceStore.getState().saveToHistory(), 0);
+    }
     onClose();
   };
 
