@@ -30,6 +30,9 @@ declaration:
       - field: dependencies
         type: string
         description: "Body field 'dependencies'"
+      - field: entry_service
+        type: string
+        description: "Body field 'entry_service'"
 
 extract_request_data:
   assign:
@@ -39,6 +42,7 @@ extract_request_data:
     search: ${incoming.body.search ?? ''}
     state: ${incoming.body.state ?? ''}
     dependencies: ${incoming.body.dependencies ?? 'all'}
+    entry_service: ${incoming.body.entry_service ?? 'all'}
 
 get_user_info:
   call: http.post
@@ -90,6 +94,7 @@ get_services_list:
       search: ${search}
       state: ${state}
       dependencies: ${dependencies}
+      entry_service: ${entry_service}
       exclude_pinned_for: ${idCode}
   limit: 600
   result: services_res
@@ -104,6 +109,7 @@ get_pinned_services_list:
       search: ${search}
       state: ${state}
       dependencies: ${dependencies}
+      entry_service: ${entry_service}
   limit: 600
   result: pinned_res
 

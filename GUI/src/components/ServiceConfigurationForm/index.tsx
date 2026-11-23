@@ -18,6 +18,7 @@ const SettingsModal: FC<SettingsModalProps> = () => {
   const examples = useServiceStore((state) => state.examples);
   const entities = useServiceStore((state) => state.entities);
   const discoverable = useServiceStore((state) => state.discoverable);
+  const entryService = useServiceStore((state) => state.entryService);
 
   const { setHasUnsavedChanges } = useServiceStore();
   const titleRef = useRef<HTMLInputElement>(null);
@@ -94,6 +95,15 @@ const SettingsModal: FC<SettingsModalProps> = () => {
                 useServiceStore.getState().setDiscoverable(checked);
               }}
               tooltip={<InfoTooltip name={'newService.discoverable.tooltip'} />}
+            />
+            <Switch
+              label={t('newService.entryService.title') + ' :'}
+              checked={entryService}
+              onCheckedChange={(checked) => {
+                setHasUnsavedChanges(true);
+                useServiceStore.getState().setEntryService(checked);
+              }}
+              tooltip={<InfoTooltip name={'newService.entryService.tooltip'} />}
             />
           </Track>
         </Card>

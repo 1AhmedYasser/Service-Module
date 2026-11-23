@@ -27,6 +27,9 @@ declaration:
       - field: discoverable
         type: boolean
         description: "Body field 'discoverable'"
+      - field: entryService
+        type: boolean
+        description: "Body field 'entryService'"
       - field: name
         type: string
         description: "Body field 'name'"
@@ -60,6 +63,7 @@ extract_request_data:
     entities: ${incoming.body.entities}
     examples: ${incoming.body.examples}
     discoverable: ${incoming.body.discoverable ?? false}
+    entryService: ${incoming.body.entryService ?? false}
     type: ${incoming.body.type.toUpperCase()}
     content: ${incoming.body.content}
     serviceId: ${incoming.body.serviceId}
@@ -99,6 +103,7 @@ service_add:
       entities: ${entities}
       examples: ${examples}
       discoverable: ${discoverable}
+      entry_service: ${entryService}
       ruuter_type: ${type}
       service_id: ${serviceId}
       state: ${state}

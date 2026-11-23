@@ -5,6 +5,7 @@ import { MdOutlineWarningAmber } from 'react-icons/md';
 import { ServiceDependency } from 'types/service-dependency';
 
 import DependencyCounts from './DependencyCounts';
+import EntryServiceBadge from './EntryServiceBadge';
 import ServiceStatusButton from './ServiceStatusButton';
 
 type DependencyNodeProps = {
@@ -18,7 +19,7 @@ type DependencyNodeProps = {
 const DependencyNode = forwardRef<HTMLDivElement, DependencyNodeProps>(
   ({ dependency, isBeingChecked, onOpen, onLocate, onChangeStatus }, ref) => {
     const { t } = useTranslation();
-    const { deleted, name, state } = dependency;
+    const { deleted, name, state, entryService } = dependency;
 
     return (
       <div ref={ref} className={clsx('dependency-node', deleted && 'dependency-node--deleted')}>
@@ -37,6 +38,7 @@ const DependencyNode = forwardRef<HTMLDivElement, DependencyNodeProps>(
               {name}
             </button>
           )}
+          {!deleted && entryService && <EntryServiceBadge />}
           <ServiceStatusButton
             state={deleted || !state ? 'deleted' : state}
             isLoading={isBeingChecked}

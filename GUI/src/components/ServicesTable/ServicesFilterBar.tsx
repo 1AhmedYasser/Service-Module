@@ -4,7 +4,12 @@ import { useTranslation } from 'react-i18next';
 import { MdClose } from 'react-icons/md';
 import { DEFAULT_SERVICES_FILTERS, ServicesFilters } from 'store/services.store';
 
-import { DEPENDENCY_FILTER_OPTIONS, hasActiveFilters, STATUS_FILTER_OPTIONS } from './filters';
+import {
+  DEPENDENCY_FILTER_OPTIONS,
+  ENTRY_SERVICE_FILTER_OPTIONS,
+  hasActiveFilters,
+  STATUS_FILTER_OPTIONS,
+} from './filters';
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -27,6 +32,11 @@ const ServicesFilterBar: FC<ServicesFilterBarProps> = ({ filters, onChange }) =>
     const timeout = setTimeout(() => onChange({ ...filters, search: trimmed }), SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(timeout);
   }, [search, filters, onChange]);
+
+  const entryServiceOptions = useMemo(
+    () => ENTRY_SERVICE_FILTER_OPTIONS.map((value) => ({ value, label: t(`overview.filters.entryService.${value}`) })),
+    [t],
+  );
 
   const dependencyOptions = useMemo(
     () => DEPENDENCY_FILTER_OPTIONS.map((value) => ({ value, label: t(`overview.filters.dependencies.${value}`) })),
@@ -54,6 +64,18 @@ const ServicesFilterBar: FC<ServicesFilterBarProps> = ({ filters, onChange }) =>
         aria-label={t('overview.filters.searchLabel') ?? ''}
         onChange={(event) => setSearch(event.target.value)}
       />
+      <div className="services-filter-bar__select">
+        <FormSelect
+          name="entryService"
+          label={t('overview.filters.entryServiceLabel')}
+          hideLabel
+          options={entryServiceOptions}
+          defaultValue={filters.entryService}
+          onSelectionChange={(selection) =>
+            selection && onChange({ ...filters, entryService: selection.value as ServicesFilters['entryService'] })
+          }
+        />
+      </div>
       <div className="services-filter-bar__select">
         <FormSelect
           name="dependencies"

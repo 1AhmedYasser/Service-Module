@@ -1,0 +1,30 @@
+@import 'src/styles/settings/variables/_colors';
+@import 'src/styles/tools/color';
+@import 'src/styles/settings/variables/typography';
+
+.entry-service-badge {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 10px;
+  border: 1px solid get-color(purple-4);
+  border-radius: 12px;
+  background-color: get-color(purple-0);
+  color: get-color(purple-12);
+  font-size: $veera-font-size-70;
+  font-weight: $veera-font-weight-gamma;
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: default;
+
+  svg {
+    font-size: 14px;
+  }
+}
+
+[data-theme='dark'] .entry-service-badge {
+  border-color: get-color(purple-6);
+  background-color: rgba(166, 93, 213, 0.2);
+  color: get-color(purple-1);
+}

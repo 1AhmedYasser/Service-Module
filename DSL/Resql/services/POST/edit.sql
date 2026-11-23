@@ -6,6 +6,7 @@ SET
     examples = ARRAY[:examples]::text[],
     entities = ARRAY[:entities]::text[],
     discoverable = COALESCE(:discoverable::boolean, discoverable),
+    entry_service = COALESCE(:entry_service::boolean, entry_service),
     current_state = :state::service_state,
     structure = :structure::json,
     updated_at = NOW()

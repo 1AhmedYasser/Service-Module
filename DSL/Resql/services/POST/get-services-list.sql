@@ -6,6 +6,7 @@ WITH filtered AS (
     s.description,
     s.examples,
     s.entities,
+    s.entry_service,
     s.current_state,
     s.ruuter_type,
     s.slot,
@@ -38,6 +39,7 @@ WITH filtered AS (
       OR (:dependencies = 'no' AND d_in.incoming_count + d_out.outgoing_count = 0)
       OR (:dependencies = 'problematic' AND d_out.outgoing_problems > 0)
     )
+    AND (:entry_service IS NULL OR :entry_service = '' OR :entry_service = 'all' OR (:entry_service = 'only' AND s.entry_service))
     AND (
       :exclude_pinned_for IS NULL OR :exclude_pinned_for = ''
       OR NOT EXISTS (
@@ -52,6 +54,7 @@ SELECT
   description,
   examples,
   entities,
+  entry_service,
   current_state AS state,
   ruuter_type AS type,
   slot,

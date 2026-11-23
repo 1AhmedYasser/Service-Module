@@ -11,6 +11,7 @@ import { Service, ServiceState } from 'types';
 
 import { DependenciesLegendContent, ServiceInfoContent } from './CardContents';
 import DependencyCounts from './DependencyCounts';
+import EntryServiceBadge from './EntryServiceBadge';
 import IndexStatus from './IndexStatus';
 import ServiceStatusButton from './ServiceStatusButton';
 
@@ -66,14 +67,17 @@ export const getColumns = ({
         const service = props.row.original;
         return (
           <span className="services-table__name-cell">
-            <button
-              type="button"
-              className="services-table__service-link"
-              title={service.name}
-              onClick={() => openService(navigate, service)}
-            >
-              {service.name}
-            </button>
+            <span className="services-table__name-group">
+              <button
+                type="button"
+                className="services-table__service-link"
+                title={service.name}
+                onClick={() => openService(navigate, service)}
+              >
+                {service.name}
+              </button>
+              {service.entryService && <EntryServiceBadge />}
+            </span>
             <InfoCard title={i18n.t('overview.serviceInfo.title')} content={<ServiceInfoContent service={service} />}>
               <button
                 type="button"

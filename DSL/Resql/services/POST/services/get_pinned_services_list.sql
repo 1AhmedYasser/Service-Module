@@ -4,6 +4,7 @@ SELECT
   s.description,
   s.examples,
   s.entities,
+  s.entry_service,
   s.current_state AS state,
   s.ruuter_type AS type,
   s.slot,
@@ -36,6 +37,7 @@ WHERE p.user_id_code = :user_id_code
     OR (:dependencies = 'no' AND d_in.incoming_count + d_out.outgoing_count = 0)
     OR (:dependencies = 'problematic' AND d_out.outgoing_problems > 0)
   )
+  AND (:entry_service IS NULL OR :entry_service = '' OR :entry_service = 'all' OR (:entry_service = 'only' AND s.entry_service))
 ORDER BY
   CASE WHEN :sorting = 'name asc' THEN s.name END ASC,
   CASE WHEN :sorting = 'name desc' THEN s.name END DESC,

@@ -6,6 +6,7 @@ import { Service } from 'types';
 import { ServiceDependency, ServiceDependencyDirection } from 'types/service-dependency';
 
 import DependencyNode from './DependencyNode';
+import EntryServiceBadge from './EntryServiceBadge';
 import ServiceStatusButton from './ServiceStatusButton';
 
 type DependencyViewProps = {
@@ -156,6 +157,7 @@ const DependencyView: FC<DependencyViewProps> = ({
               <span className="dependency-view__current-name" title={service.name}>
                 {service.name}
               </span>
+              {service.entryService && <EntryServiceBadge />}
               <ServiceStatusButton
                 state={service.state}
                 isLoading={serviceIdBeingChecked === service.serviceId}

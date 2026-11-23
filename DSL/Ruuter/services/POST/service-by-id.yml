@@ -71,6 +71,7 @@ prepare_results:
       examples: ${service_results.response.body[0].examples}
       entities: ${service_results.response.body[0].entities}
       discoverable: ${service_results.response.body[0].discoverable}
+      entryService: ${service_results.response.body[0].entryService}
       state: ${service_results.response.body[0].state}
       type: ${service_results.response.body[0].type}
       structure: ${service_results.response.body[0].structure}

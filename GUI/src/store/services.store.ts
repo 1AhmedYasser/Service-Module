@@ -54,9 +54,15 @@ export interface ServicesFilters {
   readonly search: string;
   readonly state: string;
   readonly dependencies: 'all' | 'yes' | 'no' | 'problematic';
+  readonly entryService: 'all' | 'only';
 }
 
-export const DEFAULT_SERVICES_FILTERS: ServicesFilters = { search: '', state: '', dependencies: 'all' };
+export const DEFAULT_SERVICES_FILTERS: ServicesFilters = {
+  search: '',
+  state: '',
+  dependencies: 'all',
+  entryService: 'all',
+};
 
 export type ServicesLoadState = 'loading' | 'success' | 'error';
 
@@ -106,6 +112,7 @@ const mapService = (item: any, isPinned: boolean): Service => ({
   examples: item.examples ?? [],
   entities: item.entities ?? [],
   slot: item.slot,
+  entryService: !!item.entryService,
   state: item.state,
   type: item.type,
   serviceId: item.serviceId,
@@ -206,6 +213,7 @@ const useServiceListStore = create<ServiceStoreState>()(
             search: filters.search,
             state: filters.state,
             dependencies: filters.dependencies,
+            entry_service: filters.entryService,
           });
         } catch (error) {
           if (requestId === latestServicesRequestId) set({ servicesLoadState: 'error', isRefreshingServices: false });
@@ -254,6 +262,7 @@ const useServiceListStore = create<ServiceStoreState>()(
           direction: item.direction,
           serviceId: item.serviceId,
           name: item.name,
+          entryService: !!item.entryService,
           state: item.state ?? null,
           type: item.type ?? null,
           deleted: !!item.deleted,
@@ -269,6 +278,7 @@ const useServiceListStore = create<ServiceStoreState>()(
           search: filters.search,
           state: filters.state,
           dependencies: filters.dependencies,
+          entry_service: filters.entryService,
         });
         const location = result.data.response;
         if (!location?.serviceId) return undefined;

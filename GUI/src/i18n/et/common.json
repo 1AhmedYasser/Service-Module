@@ -332,6 +332,11 @@
         "no": "Seosteta",
         "problematic": "Probleemne"
       },
+      "entryServiceLabel": "Algteenused",
+      "entryService": {
+        "all": "Kõik teenused",
+        "only": "Ainult algusteenused"
+      },
       "status": {
         "all": "Kõik staatused"
       }
@@ -379,6 +384,10 @@
     "discoverable": {
       "title": "Avastatav tehisintellektile",
       "tooltip": "Kui see on sisse lülitatud, saab Bürokratt kasutaja pöördumise põhjal teenuse tuvastada ja käivitada. Teenus peab olema aktiivne. Väljalülitatud teenust saab endiselt käivitada teise teenuse kaudu."
+    },
+    "entryService": {
+      "title": "Algteenus",
+      "tooltip": "See teenus on märgitud teenusevoo alguspunktiks. Teised teenused saavad sellele viidata ka järgmise teenusena."
     },
     "test": "Testi URLi",
     "slot": "Mälukoht",

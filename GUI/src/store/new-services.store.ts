@@ -91,6 +91,7 @@ export interface ServiceStoreState {
   examples: string[];
   entities: string[];
   discoverable: boolean;
+  entryService: boolean;
   edges: Edge[];
   // In the future, this needs to use a common interface with NodeDataProps and not Node
   nodes: Node[];
@@ -127,6 +128,7 @@ export interface ServiceStoreState {
   setExamples: (examples: string[]) => void;
   setEntities: (entities: string[]) => void;
   setDiscoverable: (discoverable: boolean) => void;
+  setEntryService: (entryService: boolean) => void;
   setStepPreferences: (stepPreferences: string[]) => void;
   loadEndpointsResponseVariables: () => void;
   setSecrets: (newSecrets: PreDefinedEndpointEnvVariables) => void;
@@ -257,6 +259,7 @@ const useServiceStore = create<ServiceStoreState>((set, get) => ({
   examples: [],
   entities: [],
   discoverable: false,
+  entryService: false,
   serviceId: uuid(),
   description: '',
   edges: initialEdges,
@@ -397,6 +400,7 @@ const useServiceStore = create<ServiceStoreState>((set, get) => ({
   setExamples: (examples: string[]) => set({ examples: examples }),
   setEntities: (entities: string[]) => set({ entities: entities }),
   setDiscoverable: (discoverable: boolean) => set({ discoverable }),
+  setEntryService: (entryService: boolean) => set({ entryService }),
   setStepPreferences: (stepPreferences: string[]) => set({ stepPreferences }),
   setSecrets: (newSecrets: PreDefinedEndpointEnvVariables) => set({ secrets: newSecrets }),
   addProductionVariables: (variables: any) => {
@@ -442,6 +446,7 @@ const useServiceStore = create<ServiceStoreState>((set, get) => ({
       examples: [],
       entities: [],
       discoverable: false,
+      entryService: false,
       secrets: { prod: [], test: [] },
       availableVariables: { prod: [], test: [] },
       reactFlowInstance: null,
@@ -533,6 +538,7 @@ const useServiceStore = create<ServiceStoreState>((set, get) => ({
         examples: settings?.examples ?? serviceResponse.data.examples,
         entities: settings?.keywords ?? serviceResponse.data.entities,
         discoverable: serviceResponse.data.discoverable ?? false,
+        entryService: serviceResponse.data.entryService ?? false,
         edges,
         nodes,
         endpoints,

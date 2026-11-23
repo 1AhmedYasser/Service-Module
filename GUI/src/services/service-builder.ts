@@ -205,6 +205,7 @@ interface SaveFlowConfig {
   examples: string[];
   entities: string[];
   discoverable: boolean;
+  entryService: boolean;
   serviceId: string;
   isNewService: boolean;
   status: 'draft' | 'ready';
@@ -297,6 +298,7 @@ export const saveFlow = async ({
   examples,
   entities,
   discoverable,
+  entryService,
   serviceId,
   isNewService,
   status = 'ready',
@@ -327,6 +329,7 @@ export const saveFlow = async ({
         examples,
         entities,
         discoverable,
+        entryService,
         nodes,
         edges,
         isNewService,
@@ -361,6 +364,7 @@ export const saveFlow = async ({
             examples,
             entities,
             discoverable,
+            entryService,
             nodes,
             edges,
             isNewService,
@@ -384,7 +388,19 @@ async function saveService(
   updateServiceDb: boolean,
   status: 'draft' | 'ready' = 'ready',
 ) {
-  const { isNewService, serviceId, name, description, slot, examples, entities, discoverable, edges, nodes } = config;
+  const {
+    isNewService,
+    serviceId,
+    name,
+    description,
+    slot,
+    examples,
+    entities,
+    discoverable,
+    entryService,
+    edges,
+    nodes,
+  } = config;
   if (updateServiceDb) {
     useServiceStore.getState().changeServiceName(removeTrailingUnderscores(name));
   }
@@ -398,6 +414,7 @@ async function saveService(
       examples,
       entities,
       discoverable,
+      entryService,
       type: 'POST',
       content: content,
       structure: JSON.stringify({
@@ -1224,6 +1241,7 @@ export const saveFlowClick = async (status: 'draft' | 'ready' = 'ready', showErr
   const examples = useServiceStore.getState().examples;
   const entities = useServiceStore.getState().entities;
   const discoverable = useServiceStore.getState().discoverable;
+  const entryService = useServiceStore.getState().entryService;
   const isNewService = useServiceStore.getState().isNewService;
   const edges = useServiceStore.getState().edges;
   const nodes = useServiceStore.getState().nodes as Node<NodeDataProps>[];
@@ -1250,6 +1268,7 @@ export const saveFlowClick = async (status: 'draft' | 'ready' = 'ready', showErr
     examples,
     entities,
     discoverable,
+    entryService,
     serviceId,
     isNewService,
     status,

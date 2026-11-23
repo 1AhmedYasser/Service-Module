@@ -89,6 +89,13 @@ $outgoing-color: #686b78;
     max-width: 420px;
   }
 
+  &__name-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+
   &__service-link {
     overflow: hidden;
     min-width: 0;
@@ -840,6 +847,10 @@ $connector-color: #a6a8b1;
     box-shadow: inset 0 0 0 6px get-color(white);
   }
 
+  &__current .entry-service-badge {
+    margin-right: auto;
+  }
+
   &__current-name {
     overflow: hidden;
     font-weight: $veera-font-weight-gamma;
@@ -887,6 +898,10 @@ $connector-color: #a6a8b1;
     gap: 12px;
     padding-bottom: 6px;
     border-bottom: 1px solid get-color(black-coral-2);
+
+    .entry-service-badge {
+      margin-right: auto;
+    }
   }
 
   &__name {

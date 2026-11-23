@@ -6,6 +6,7 @@ export interface ServiceDependency {
   readonly direction: ServiceDependencyDirection;
   readonly serviceId: string;
   readonly name: string;
+  readonly entryService: boolean;
   readonly state: ServiceState | null;
   readonly type: 'GET' | 'POST' | null;
   readonly deleted: boolean;

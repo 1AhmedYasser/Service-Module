@@ -30,6 +30,9 @@ declaration:
       - field: dependencies
         type: string
         description: "Body field 'dependencies'"
+      - field: entry_service
+        type: string
+        description: "Body field 'entry_service'"
 
 check_for_required_parameters:
   switch:
@@ -69,6 +72,7 @@ locate_service:
       search: ${incoming.body.search ?? ''}
       state: ${incoming.body.state ?? ''}
       dependencies: ${incoming.body.dependencies ?? 'all'}
+      entry_service: ${incoming.body.entry_service ?? 'all'}
   result: locate_res
 
 return_ok:

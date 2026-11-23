@@ -19,6 +19,7 @@ export interface Service {
   readonly examples: string[];
   readonly entities: string[];
   readonly discoverable?: boolean;
+  readonly entryService?: boolean;
   readonly structure?: { value: string };
   readonly endpoints: Array<
     Pick<EndpointData, 'endpointId' | 'name' | 'type' | 'fileName'> & {

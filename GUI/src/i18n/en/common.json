@@ -332,6 +332,11 @@
         "no": "Without dependencies",
         "problematic": "Problematic"
       },
+      "entryServiceLabel": "Entry services",
+      "entryService": {
+        "all": "All services",
+        "only": "Only entry services"
+      },
       "status": {
         "all": "All statuses"
       }
@@ -381,6 +386,10 @@
     "discoverable": {
       "title": "Discoverable by AI",
       "tooltip": "When enabled, Bürokratt can identify and start this service based on the user's request. The service must be Active. When disabled, it can still be started through another service."
+    },
+    "entryService": {
+      "title": "Entry service",
+      "tooltip": "This service is marked as the start of a service flow. Other services can also reference it as their next service."
     },
     "endpoint": {
       "add": "+ Add API endpoint",

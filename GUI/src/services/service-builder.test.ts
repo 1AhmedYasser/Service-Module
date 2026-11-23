@@ -518,6 +518,7 @@ describe('saveFlow', () => {
     examples: [],
     entities: [],
     discoverable: false,
+    entryService: false,
     serviceId: '1',
     isNewService: true,
   });

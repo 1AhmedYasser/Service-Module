@@ -22,6 +22,7 @@ WITH filtered AS (
       OR (:dependencies = 'no' AND d_in.incoming_count + d_out.outgoing_count = 0)
       OR (:dependencies = 'problematic' AND d_out.outgoing_problems > 0)
     )
+    AND (:entry_service IS NULL OR :entry_service = '' OR :entry_service = 'all' OR (:entry_service = 'only' AND s.entry_service))
     AND NOT EXISTS (
       SELECT 1 FROM user_pinned_service p
       WHERE p.user_id_code = :user_id_code AND p.service_id = s.service_id

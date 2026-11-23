@@ -23,6 +23,9 @@ declaration:
       - field: discoverable
         type: boolean
         description: "Body field 'discoverable'"
+      - field: entryService
+        type: boolean
+        description: "Body field 'entryService'"
       - field: name
         type: string
         description: "Body field 'name'"
@@ -56,6 +59,7 @@ extract_request_data:
     entities: ${incoming.body.entities}
     examples: ${incoming.body.examples}
     discoverable: ${incoming.body.discoverable}
+    entryService: ${incoming.body.entryService}
     type: ${incoming.body.type}
     content: ${incoming.body.content}
     structure: ${incoming.body.structure}
@@ -238,6 +242,7 @@ service_edit:
       examples: ${examples}
       entities: ${entities}
       discoverable: ${discoverable}
+      entry_service: ${entryService}
       structure: ${new_structure}
       state: ${state ?? 'draft'}
   result: editedService

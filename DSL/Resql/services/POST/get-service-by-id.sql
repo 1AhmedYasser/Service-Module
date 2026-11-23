@@ -6,6 +6,7 @@ SELECT
   examples,
   entities,
   discoverable,
+  entry_service,
   current_state AS state,
   ruuter_type AS type,
   structure::json,

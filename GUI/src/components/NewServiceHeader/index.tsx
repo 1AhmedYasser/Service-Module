@@ -22,11 +22,17 @@ import Dialog from '../Dialog';
 import Icon from '../Icon';
 import ReturnToDraftModal from '../ReturnToDraftModal';
 import SettingsModal from '../ServiceConfigurationForm';
+import EntryServiceBadge from '../ServicesTable/EntryServiceBadge';
 import ServiceStatusChip from '../ServicesTable/ServiceStatusChip';
 
 import './NewServiceHeader.scss';
 
-type ServiceOption = { readonly name: string; readonly serviceId: string; readonly state?: ServiceState };
+type ServiceOption = {
+  readonly name: string;
+  readonly serviceId: string;
+  readonly state?: ServiceState;
+  readonly entryService?: boolean;
+};
 
 type NewServiceHeaderProps = {
   activeStep: number;
@@ -45,6 +51,7 @@ const showEmptyNameError = () => {
 const NewServiceHeader: FC<NewServiceHeaderProps> = ({ backOnClick, continueOnClick, saveOnClick }) => {
   const name = removeTrailingUnderscores(useServiceStore((state) => state.serviceNameDashed()));
   const serviceState = useServiceStore((state) => state.serviceState);
+  const entryService = useServiceStore((state) => state.entryService);
   const hasUnsavedChanges = useServiceStore((state) => state.hasUnsavedChanges);
   const selectedService = useServiceListStore((state) => state.selectedService);
   const [showServiceConfig, setShowServiceConfig] = useState<boolean>(false);
@@ -65,7 +72,9 @@ const NewServiceHeader: FC<NewServiceHeaderProps> = ({ backOnClick, continueOnCl
       .get(getNavigableServicesList())
       .then((res) => {
         const data: ServiceOption[] = Array.isArray(res.data) ? res.data : [];
-        setServices(data.map((s) => ({ name: s.name, serviceId: s.serviceId, state: s.state })));
+        setServices(
+          data.map((s) => ({ name: s.name, serviceId: s.serviceId, state: s.state, entryService: !!s.entryService })),
+        );
       })
       .catch(console.error);
   }, [isServiceDropdownOpen]);
@@ -140,6 +149,7 @@ const NewServiceHeader: FC<NewServiceHeaderProps> = ({ backOnClick, continueOnCl
             <DropdownMenu.Trigger asChild>
               <button type="button" className="naming naming--trigger">
                 <span className="naming__label">{name || '...'}</span>
+                {entryService && <EntryServiceBadge />}
                 {serviceState && <ServiceStatusChip state={serviceState} variant="outlined" />}
                 {isServiceDropdownOpen ? (
                   <CgChevronUp className="naming__chevron" size={25} />
@@ -162,6 +172,7 @@ const NewServiceHeader: FC<NewServiceHeaderProps> = ({ backOnClick, continueOnCl
                       onSelect={() => navigateToService(service.serviceId, navigate)}
                     >
                       <span className="service-switch-dropdown__name">{service.name}</span>
+                      {service.entryService && <EntryServiceBadge />}
                       {service.state && <ServiceStatusChip state={service.state} variant="outlined" />}
                     </DropdownMenu.Item>
                   ))
