@@ -1,5 +1,5 @@
 import React from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
 import { Layout } from './components';
 import ApiRegistryPage from './pages/ApiRegistryPage';
@@ -13,11 +13,13 @@ import { ROUTES } from './resources/routes-constants';
 import './styles/main.scss';
 
 const RootComponent: React.FC = () => {
+  const location = useLocation();
+
   return (
     <Routes>
       <Route path={'/'} element={<Navigate to={ROUTES.OVERVIEW_ROUTE} />} />
       <Route index element={<Navigate to={ROUTES.OVERVIEW_ROUTE} />} />
-      <Route path={ROUTES.NEWSERVICE_ROUTE} element={<ServiceFlowPage />} />
+      <Route path={ROUTES.NEWSERVICE_ROUTE} element={<ServiceFlowPage key={location.key} />} />
       <Route path={ROUTES.NEWSERVICE_ROUTE_WITH_INTENT_NAME} element={<ServiceFlowPage />} />
       <Route path={ROUTES.EDITSERVICE_ROUTE} element={<ServiceFlowPage />} />
       <Route path={ROUTES.FLOW_ROUTE} element={<ServiceFlowPage />} />

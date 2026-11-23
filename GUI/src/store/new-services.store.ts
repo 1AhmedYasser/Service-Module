@@ -180,11 +180,16 @@ export interface ServiceStoreState {
   setReactFlowInstance: (reactFlowInstance: ReactFlowInstance | null) => void;
   hasUnsavedChanges: boolean;
   nextLocation: string | null;
+  beforeNavigationSave: (() => void) | null;
+  canDiscardNavigation: boolean;
   setHasUnsavedChanges: (value: boolean) => void;
   proceedNavigation: () => string | null;
   cancelNavigation: () => void;
   handleNavigationAttempt: (to: string) => boolean;
-  handleProgrammaticNavigation: (to: string) => boolean;
+  handleProgrammaticNavigation: (
+    to: string,
+    options?: { readonly beforeSave?: () => void; readonly canDiscard?: boolean },
+  ) => boolean;
   history: { nodes: Node[]; edges: Edge[] }[];
   historyIndex: number;
   saveToHistory: (state?: { nodes: Node[]; edges: Edge[] }) => void;
@@ -893,6 +898,8 @@ const useServiceStore = create<ServiceStoreState>((set, get) => ({
   },
   hasUnsavedChanges: false,
   nextLocation: null,
+  beforeNavigationSave: null,
+  canDiscardNavigation: true,
   setHasUnsavedChanges: (value) => set({ hasUnsavedChanges: value }),
   handleNavigationAttempt: (to) => {
     if (get().hasUnsavedChanges) {
@@ -901,9 +908,9 @@ const useServiceStore = create<ServiceStoreState>((set, get) => ({
     }
     return true;
   },
-  handleProgrammaticNavigation: (to) => {
-    if (get().hasUnsavedChanges) {
-      set({ nextLocation: to });
+  handleProgrammaticNavigation: (to, { beforeSave, canDiscard = true } = {}) => {
+    if (get().hasUnsavedChanges || beforeSave) {
+      set({ nextLocation: to, beforeNavigationSave: beforeSave ?? null, canDiscardNavigation: canDiscard });
       return false;
     }
     return true;
@@ -911,11 +918,11 @@ const useServiceStore = create<ServiceStoreState>((set, get) => ({
   proceedNavigation: () => {
     set({ hasUnsavedChanges: false });
     const nextLocation = get().nextLocation;
-    set({ nextLocation: null });
+    set({ nextLocation: null, beforeNavigationSave: null, canDiscardNavigation: true });
     return nextLocation;
   },
   cancelNavigation: () => {
-    set({ nextLocation: null });
+    set({ nextLocation: null, beforeNavigationSave: null, canDiscardNavigation: true });
   },
 
   saveToHistory: (stateOverride?: { nodes: Node[]; edges: Edge[] }) => {

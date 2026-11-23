@@ -8,6 +8,7 @@ export default function UnsavedChangesDialog() {
   const nextLocation = useServiceStore((state) => state.nextLocation);
   const proceedNavigation = useServiceStore((state) => state.proceedNavigation);
   const cancelNavigation = useServiceStore((state) => state.cancelNavigation);
+  const canDiscardNavigation = useServiceStore((state) => state.canDiscardNavigation);
   const navigate = useNavigate();
   const [isSaving, setIsSaving] = useState(false);
 
@@ -27,14 +28,21 @@ export default function UnsavedChangesDialog() {
         <Button appearance="secondary" onClick={cancelNavigation}>
           {t('global.cancel')}
         </Button>
-        <Button appearance="primary" onClick={goToNextLocation}>
-          {t('global.continue')}
-        </Button>
+        {canDiscardNavigation && (
+          <Button appearance="primary" onClick={goToNextLocation}>
+            {t('global.continue')}
+          </Button>
+        )}
         <Button
           appearance={isSaving ? 'loading' : 'primary'}
           onClick={async () => {
             setIsSaving(true);
             try {
+              const beforeSave = useServiceStore.getState().beforeNavigationSave;
+              if (beforeSave) {
+                useServiceStore.setState({ beforeNavigationSave: null });
+                beforeSave();
+              }
               await useServiceStore.getState().onServiceSave('draft', false);
               goToNextLocation();
             } catch (error) {

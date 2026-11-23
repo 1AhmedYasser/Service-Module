@@ -1,10 +1,11 @@
 import { Node } from '@xyflow/react';
 import Button from 'components/Button';
 import { FormSelect } from 'components/FormElements';
-import { FC, useEffect, useMemo, useState } from 'react';
+import { FC, MouseEvent, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MdOpenInNew } from 'react-icons/md';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { ROUTES } from 'resources/routes-constants';
 import useServiceStore from 'store/new-services.store';
 import { Assign } from 'types/assign';
 import { JumpToService } from 'types/jump-to-service';
@@ -22,9 +23,15 @@ type JumpToServiceContentProps = {
   readonly node: Node<NodeDataProps>;
   readonly jumpToService: JumpToService;
   readonly onChange: (value: JumpToService) => void;
+  readonly onCreateNewService: () => void;
 };
 
-const JumpToServiceContent: FC<JumpToServiceContentProps> = ({ node, jumpToService, onChange }) => {
+const JumpToServiceContent: FC<JumpToServiceContentProps> = ({
+  node,
+  jumpToService,
+  onChange,
+  onCreateNewService,
+}) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const navigableServices = useServiceStore((state) => state.navigableServices);
@@ -75,6 +82,12 @@ const JumpToServiceContent: FC<JumpToServiceContentProps> = ({ node, jumpToServi
     navigateToService(jumpToService.serviceId, navigate);
   };
 
+  const handleCreateNewServiceClick = (event: MouseEvent<HTMLAnchorElement>) => {
+    if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    onCreateNewService();
+  };
+
   return (
     <Track direction="vertical" align="stretch" gap={16}>
       <Track direction="vertical" align="stretch" gap={16} style={{ padding: '16px 16px 0' }}>
@@ -106,6 +119,14 @@ const JumpToServiceContent: FC<JumpToServiceContentProps> = ({ node, jumpToServi
                   <Icon icon={<MdOpenInNew color="#005aa3" />} size="medium" />
                 </Button>
               )}
+              <Link
+                to={ROUTES.NEWSERVICE_ROUTE}
+                className="btn btn--text btn--s"
+                style={{ whiteSpace: 'nowrap' }}
+                onClick={handleCreateNewServiceClick}
+              >
+                {t('serviceFlow.element.jumpToService.createNewService')}
+              </Link>
             </Track>
             {isLinkedServiceDeleted && (
               <p style={{ color: '#c00', fontSize: '13px' }}>

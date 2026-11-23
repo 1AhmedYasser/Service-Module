@@ -4,6 +4,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
+import { ROUTES } from 'resources/routes-constants';
 import useServiceStore from 'store/new-services.store';
 import useServiceListStore from 'store/services.store';
 import useToastStore from 'store/toasts.store';
@@ -40,6 +42,7 @@ import './styles.scss';
 
 const FlowElementsPopup: React.FC = () => {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [selectedTab, setSelectedTab] = useState<string | null>(null);
   const [isSaveEnabled, setIsSaveEnabled] = useState(true);
   const node = useServiceStore((state) => state.selectedNode);
@@ -235,6 +238,23 @@ const FlowElementsPopup: React.FC = () => {
 
     useServiceStore.getState().handlePopupSave(updatedNode);
     onClose();
+  };
+
+  const handleCreateNewService = () => {
+    const hasPendingPopupChanges =
+      title !== (node.data.label ?? '') ||
+      JSON.stringify(jumpToService) !== JSON.stringify(node.data.jumpToService ?? defaultJumpToService);
+
+    if (!hasPendingPopupChanges && !useServiceStore.getState().hasUnsavedChanges) {
+      useServiceStore.getState().resetState();
+      navigate(ROUTES.NEWSERVICE_ROUTE);
+      return;
+    }
+
+    useServiceStore.getState().handleProgrammaticNavigation(ROUTES.NEWSERVICE_ROUTE, {
+      beforeSave: hasPendingPopupChanges ? handleSaveClick : undefined,
+      canDiscard: false,
+    });
   };
 
   const prepareAssignForSaving = (updatedNode: Node<NodeDataProps>) => {
@@ -511,7 +531,12 @@ const FlowElementsPopup: React.FC = () => {
             )}
             {stepType === StepType.JumpToService && (
               <DndProvider backend={HTML5Backend}>
-                <JumpToServiceContent node={node} jumpToService={jumpToService} onChange={setJumpToService} />
+                <JumpToServiceContent
+                  node={node}
+                  jumpToService={jumpToService}
+                  onChange={setJumpToService}
+                  onCreateNewService={handleCreateNewService}
+                />
               </DndProvider>
             )}
             {stepType === StepType.UserDefined && (
