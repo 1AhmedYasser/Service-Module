@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { getAllEndpoints, testEndpointUrl } from 'resources/api-constants';
 import api from 'services/api-dev';
 import { persistEndpoints } from 'services/endpoint.service';
-import useApiRegistryStore from 'store/api-registry.store';
+import useApiRegistryStore, { showIndexValidationToast } from 'store/api-registry.store';
 import useServiceStore from 'store/new-services.store';
 import useToastStore from 'store/toasts.store';
 import { v4 as uuid } from 'uuid';
@@ -139,7 +139,9 @@ const AddEndpointModal: React.FC<AddEndpointModalProps> = ({
     const serviceId = context === 'service' ? useServiceStore.getState().serviceId : (passedEndpoint.serviceId ?? '');
 
     persistEndpoints([passedEndpoint], serviceId)
-      .then(async () => {
+      .then(async (indexWarnings) => {
+        // Saved, but LLM indexing was not started (e.g. missing description)
+        indexWarnings.forEach(showIndexValidationToast);
         // For custom and openApi endpoints in registry context, call testEndpointUrl to persist response_schema to DB
         if (
           context === 'registry' &&

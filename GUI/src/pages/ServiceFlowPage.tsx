@@ -58,6 +58,15 @@ const ServiceFlowPage: FC = () => {
     };
   }, [id]);
 
+  useEffect(() => {
+    const handleFocus = () => {
+      void useServiceStore.getState().loadNavigableServiceIds();
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, []);
+
   const edges = useServiceStore((state) => state.edges);
   const nodes = useServiceStore((state) => state.nodes);
 

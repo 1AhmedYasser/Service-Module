@@ -4,4 +4,5 @@ FROM UNNEST(
     ARRAY[:names]::text[],
     ARRAY[:structures]::json[]
 ) AS t(name, structure)
-WHERE s.name = t.name;
+WHERE s.name = t.name
+  AND NOT s.deleted;

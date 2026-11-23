@@ -1,13 +1,45 @@
 import { Edge, Node } from '@xyflow/react';
 import { StepType } from 'types';
 import { JumpToService } from 'types/jump-to-service';
+import { getEndpointResultName } from 'utils/flow-utils';
 
 export interface FlowCompletenessResult {
   readonly isComplete: boolean;
   readonly unconnectedNodeIds: ReadonlySet<string>;
   readonly unfinishedEdgeIds: ReadonlySet<string>;
   readonly unresolvedJumpToServiceNodeIds: ReadonlySet<string>;
+  readonly unresolvedEndpointReferenceNodeIds: ReadonlySet<string>;
 }
+
+const ENDPOINT_RESULT_REFERENCE_RE = /(?<!\w)(\w+_res)\.response\b/g;
+const INTERNAL_RESULT_NAMES = ['dynamic_choices_res'];
+
+const collectStrings = (value: unknown, strings: string[] = []): string[] => {
+  if (typeof value === 'string') strings.push(value);
+  else if (Array.isArray(value)) value.forEach((item) => collectStrings(item, strings));
+  else if (value && typeof value === 'object') Object.values(value).forEach((item) => collectStrings(item, strings));
+  return strings;
+};
+
+const getUnresolvedEndpointReferenceNodeIds = (nodes: Node[]): Set<string> => {
+  const resultNames = new Set([
+    ...INTERNAL_RESULT_NAMES,
+    ...nodes
+      .filter((node) => node.data?.stepType === StepType.UserDefined)
+      .map((node) => getEndpointResultName(node, nodes)),
+  ]);
+
+  return new Set(
+    nodes
+      .filter((node) => node.type === 'custom')
+      .filter((node) =>
+        collectStrings(node.data).some((text) =>
+          [...text.matchAll(ENDPOINT_RESULT_REFERENCE_RE)].some(([, name]) => !resultNames.has(name)),
+        ),
+      )
+      .map((node) => node.id),
+  );
+};
 
 const getReachableNodeIds = (nodes: Node[], edges: Edge[]): Set<string> => {
   const startNode = nodes.find((node) => node.type === 'start');
@@ -54,11 +86,24 @@ export const validateFlowCompleteness = (
       .map((node) => node.id),
   );
 
+  const unresolvedEndpointReferenceNodeIds = getUnresolvedEndpointReferenceNodeIds(nodes);
+
   return {
     isComplete:
-      unconnectedNodeIds.size === 0 && unfinishedEdgeIds.size === 0 && unresolvedJumpToServiceNodeIds.size === 0,
+      unconnectedNodeIds.size === 0 &&
+      unfinishedEdgeIds.size === 0 &&
+      unresolvedJumpToServiceNodeIds.size === 0 &&
+      unresolvedEndpointReferenceNodeIds.size === 0,
     unconnectedNodeIds,
     unfinishedEdgeIds,
     unresolvedJumpToServiceNodeIds,
+    unresolvedEndpointReferenceNodeIds,
   };
 };
+
+export const getFlowCompletenessMessageKeys = (result: FlowCompletenessResult): string[] => [
+  ...(result.unconnectedNodeIds.size > 0 ? ['newService.toast.unconnectedServiceBlocks'] : []),
+  ...(result.unfinishedEdgeIds.size > 0 ? ['newService.toast.unfinishedFlows'] : []),
+  ...(result.unresolvedJumpToServiceNodeIds.size > 0 ? ['newService.toast.unresolvedJumpToService'] : []),
+  ...(result.unresolvedEndpointReferenceNodeIds.size > 0 ? ['newService.toast.unresolvedEndpointReferences'] : []),
+];

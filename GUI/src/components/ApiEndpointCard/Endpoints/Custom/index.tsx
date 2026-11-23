@@ -121,7 +121,7 @@ const EndpointCustom: React.FC<EndpointCustomProps> = ({
     // Replace {name} placeholders in the URL path
     let testUrl = def.url ?? '';
     for (const param of pathParams) {
-      testUrl = testUrl.split(`{${param.name}}`).join(encodeURIComponent(param.value ?? ''));
+      testUrl = testUrl.split(`{${param.name}}`).join(param.value ?? '');
     }
 
     // Strip query string — query params are sent separately via the params map

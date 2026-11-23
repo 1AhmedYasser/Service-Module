@@ -115,8 +115,51 @@ check_for_status:
     - condition: ${new_state === "active"}
       next: activate_service
     - condition: ${new_state === "draft"}
-      next: draft_service
+      next: check_remove_blob_before_draft
   next: deactivate_service
+
+check_remove_blob_before_draft:
+  switch:
+    - condition: ${status_res.response.body[0].currentState === 'active' && [#AZURE_STORAGE_ENABLED] === true}
+      next: delete_from_storage_before_draft
+  next: draft_service
+
+delete_from_storage_before_draft:
+  call: http.delete
+  args:
+    url: "[#STORAGE_FERRY]/v1/files/delete"
+    body:
+      files:
+        - storageAccountId: "[#STORAGE_FERRY_ACCOUNT_ID]"
+          container: "[#STORAGE_FERRY_CONTAINER]"
+          fileName: "${storage_file_name}.json"
+  result: ferry_delete_result
+  error: check_delete_from_storage_before_draft
+  next: check_delete_from_storage_before_draft
+
+check_delete_from_storage_before_draft:
+  switch:
+    - condition: ${200 <= ferry_delete_result.response.statusCodeValue && ferry_delete_result.response.statusCodeValue < 300}
+      next: trigger_azure_indexer_before_draft
+    - condition: ${ferry_delete_result.response.statusCodeValue === 404}
+      next: draft_service
+  next: restore_status_after_storage_failure
+
+restore_status_after_storage_failure:
+  call: http.post
+  args:
+    url: "[#SERVICE_RESQL]/set-status"
+    body:
+      id: ${id}
+      new_state: ${status_res.response.body[0].currentState}
+  result: restore_status_res
+  next: return_storage_delete_failed
+
+trigger_azure_indexer_before_draft:
+  template: "[#SERVICE_PROJECT_LAYER]/trigger-azure-indexer"
+  requestType: templates
+  result: azure_indexer_result
+  next: draft_service
 
 activate_service:
   call: http.post
@@ -153,7 +196,7 @@ generate_service_json:
 
 check_if_azure_storage_is_enabled:
   switch:
-    - condition: ${[#AZURE_STORAGE_ENABLED] === true}
+    - condition: ${[#AZURE_STORAGE_ENABLED] === true && service_data_result.response.body[0].discoverable === true}
       next: create_in_storage
   next: activate_all_mcq_services  
 
@@ -168,25 +211,11 @@ create_in_storage:
           fileName: "${storage_file_name}.json"
       content: ${JSON.stringify(service_json_result.response.body)}
   result: ferry_upload_result
-  next: check_if_azure_configured_after_create
-
-check_if_azure_configured_after_create:
-  switch:
-    - condition: ${"[#AZURE_SEARCH_SERVICE_NAME]" !== "" && "[#AZURE_SEARCH_INDEXER_NAME]" !== "" && "[#AZURE_SEARCH_API_KEY]" !== ""}
-      next: trigger_azure_indexer_after_create
-  next: log_azure_not_configured_after_create
-
-log_azure_not_configured_after_create:
-  log: "Warning! Azure Search configuration not found. Skipping Azure indexer trigger. Please configure AZURE_SEARCH_SERVICE_NAME, AZURE_SEARCH_INDEXER_NAME, and AZURE_SEARCH_API_KEY in constants.ini"
-  next: activate_all_mcq_services
+  next: trigger_azure_indexer_after_create
 
 trigger_azure_indexer_after_create:
-  call: http.post
-  args:
-    url: "https://[#AZURE_SEARCH_SERVICE_NAME].search.windows.net/indexers/[#AZURE_SEARCH_INDEXER_NAME]/run?api-version=2024-07-01"
-    headers:
-      api-key: "[#AZURE_SEARCH_API_KEY]"
-      Content-Type: "application/json"
+  template: "[#SERVICE_PROJECT_LAYER]/trigger-azure-indexer"
+  requestType: templates
   result: azure_indexer_result
   next: activate_all_mcq_services
  
@@ -200,7 +229,13 @@ activate_all_mcq_services:
       keyword: "${name}_mcq_"
       format: "yml"
   result: active_move_results
-  next: call_llm_index
+  next: check_if_discoverable
+
+check_if_discoverable:
+  switch:
+    - condition: ${service_data_result.response.body[0].discoverable === true}
+      next: call_llm_index
+  next: return_ok
 
 call_llm_index:
   call: http.post
@@ -210,20 +245,51 @@ call_llm_index:
       cookie: ${incoming.headers.cookie}
     body:
       serviceId: ${id}
-      name: ${name}
-      description: ${service_data_result.response.body[0].description}
-      examples: ${service_data_result.response.body[0].examples}
-      entities: ${service_data_result.response.body[0].entities}
-      type: ${ruuter_type}
-      state: ${new_state}
-      isCommon: ${service_data_result.response.body[0].isCommon}
   result: llm_enrich_result
   error: llm_enrich_error
-  next: return_ok
+  next: check_index_crashed
+
+# When the LLM module is unreachable, Ruuter aborts the indexing flow after the attempt started
+# (a connection error cannot be caught inside that flow), so it returns 5xx and the attempt would
+# stay IN_PROGRESS until the timeout. Mark it FAILED here; a result already recorded is not touched.
+check_index_crashed:
+  switch:
+    - condition: ${llm_enrich_result != null && llm_enrich_result.response != null && llm_enrich_result.response.statusCodeValue >= 500}
+      next: mark_index_unreachable
+  next: assign_index_warning
+
+mark_index_unreachable:
+  call: http.post
+  args:
+    url: "[#SERVICE_RESQL]/services/mark_service_llm_index_unreachable"
+    body:
+      serviceId: ${id}
+      failureReason: "LLM module is not reachable. Please try again later."
+  result: mark_unreachable_res
+  next: assign_index_warning
+
+# Indexing never blocks activation. service-index-llm owns all indexing status changes; here we only
+# surface a validation warning (e.g. missing description) so the GUI can show a toast.
+assign_index_warning:
+  assign:
+    index_warning: "${llm_enrich_result != null && llm_enrich_result.response != null && llm_enrich_result.response.body != null && llm_enrich_result.response.body.response != null && llm_enrich_result.response.body.response.code != null && String(llm_enrich_result.response.body.response.code).startsWith('VALIDATION_') ? llm_enrich_result.response.body.response.code : ''}"
+
+assign_activated_response:
+  assign:
+    activated_response:
+      message: "Status Changed Successfully"
+      indexWarning: ${index_warning}
+  next: return_ok_activated
+
+return_ok_activated:
+  reloadDsl: true
+  status: 200
+  return: ${activated_response}
+  next: end
 
 llm_enrich_error:
   log: "Error occurred while calling LLM enrich service for service id: ${id}"
-  next: return_ok
+  next: check_index_crashed
 
 deactivate_service:
   call: http.post
@@ -251,25 +317,11 @@ delete_from_storage:
           container: "[#STORAGE_FERRY_CONTAINER]"
           fileName: "${storage_file_name}.json"
   result: ferry_delete_result
-  next: check_if_azure_configured_after_delete
-
-check_if_azure_configured_after_delete:
-  switch:
-    - condition: ${"[#AZURE_SEARCH_SERVICE_NAME]" !== "" && "[#AZURE_SEARCH_INDEXER_NAME]" !== "" && "[#AZURE_SEARCH_API_KEY]" !== ""}
-      next: trigger_azure_indexer_after_delete
-  next: log_azure_not_configured_after_delete
-
-log_azure_not_configured_after_delete:
-  log: "Warning! Azure Search configuration not found. Skipping Azure indexer trigger. Please configure AZURE_SEARCH_SERVICE_NAME, AZURE_SEARCH_INDEXER_NAME, and AZURE_SEARCH_API_KEY in constants.ini"
-  next: dactivate_all_mcq_services
+  next: trigger_azure_indexer_after_delete
 
 trigger_azure_indexer_after_delete:
-  call: http.post
-  args:
-    url: "https://[#AZURE_SEARCH_SERVICE_NAME].search.windows.net/indexers/[#AZURE_SEARCH_INDEXER_NAME]/run?api-version=2024-07-01"
-    headers:
-      api-key: "[#AZURE_SEARCH_API_KEY]"
-      Content-Type: "application/json"
+  template: "[#SERVICE_PROJECT_LAYER]/trigger-azure-indexer"
+  requestType: templates
   result: azure_indexer_result
   next: dactivate_all_mcq_services
 
@@ -331,6 +383,11 @@ return_same_state_update:
 return_service_file_missing:
   status: 500
   return: "Service file to update is missing"
+  next: end
+
+return_storage_delete_failed:
+  status: 500
+  return: "Failed to delete service from storage"
   next: end
 
 return_intent_does_not_exist:

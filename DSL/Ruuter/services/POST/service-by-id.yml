@@ -36,7 +36,7 @@ get_user_info:
 
 check_user_info_response:
   switch:
-    - condition: ${200 <= res.response.statusCodeValue && res.response.statusCodeValue < 300}
+    - condition: ${200 <= res.response.statusCodeValue && res.response.statusCodeValue < 300 && res.response.body != null}
       next: assignIdCode
   next: return_unauthorized
 
@@ -70,9 +70,9 @@ prepare_results:
       slot: ${service_results.response.body[0].slot}
       examples: ${service_results.response.body[0].examples}
       entities: ${service_results.response.body[0].entities}
+      discoverable: ${service_results.response.body[0].discoverable}
       state: ${service_results.response.body[0].state}
       type: ${service_results.response.body[0].type}
-      isCommon: ${service_results.response.body[0].isCommon}
       structure: ${service_results.response.body[0].structure}
       endpoints: ${endpoints_results.response.body}
       serviceId: ${service_results.response.body[0].serviceId}

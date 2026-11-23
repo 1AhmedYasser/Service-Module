@@ -24,9 +24,9 @@ declaration:
       - field: examples
         type: object
         description: "Body field 'Examples'"
-      - field: isCommon
+      - field: discoverable
         type: boolean
-        description: "Body field 'isCommon'"
+        description: "Body field 'discoverable'"
       - field: name
         type: string
         description: "Body field 'name'"
@@ -48,7 +48,7 @@ declaration:
 
 check_for_required_parameters:
   switch:
-    - condition: ${incoming.body.name == null || incoming.body.description == null || incoming.body.type == null || incoming.body.content == null || incoming.body.serviceId == null || incoming.body.isCommon == null || incoming.body.structure == null}
+    - condition: ${incoming.body.name == null || incoming.body.description == null || incoming.body.type == null || incoming.body.content == null || incoming.body.serviceId == null || incoming.body.structure == null}
       next: return_incorrect_request
   next: extract_request_data
 
@@ -59,10 +59,10 @@ extract_request_data:
     slot: ${""}
     entities: ${incoming.body.entities}
     examples: ${incoming.body.examples}
+    discoverable: ${incoming.body.discoverable ?? false}
     type: ${incoming.body.type.toUpperCase()}
     content: ${incoming.body.content}
     serviceId: ${incoming.body.serviceId}
-    isCommon: ${incoming.body.isCommon}
     structure: ${incoming.body.structure}
     state: ${incoming.body.state}
   next: check_if_update_service_db
@@ -98,9 +98,9 @@ service_add:
       slot: ${slot}
       entities: ${entities}
       examples: ${examples}
+      discoverable: ${discoverable}
       ruuter_type: ${type}
       service_id: ${serviceId}
-      is_common: ${isCommon}
       state: ${state}
       structure: ${structure}
   result: createdService

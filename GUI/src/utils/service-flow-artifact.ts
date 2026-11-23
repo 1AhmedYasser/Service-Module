@@ -14,11 +14,13 @@ export const buildServiceSettings = (service: {
   description?: string;
   examples?: string[];
   entities?: string[];
+  discoverable?: boolean;
 }): ServiceExportSettings => ({
   title: service.name ?? '',
   description: service.description ?? '',
   examples: service.examples ?? [],
   keywords: service.entities ?? [],
+  discoverable: service.discoverable ?? false,
 });
 
 export const buildServiceSettingsFromStore = (): ServiceExportSettings =>
@@ -27,6 +29,7 @@ export const buildServiceSettingsFromStore = (): ServiceExportSettings =>
     description: useServiceStore.getState().description,
     examples: useServiceStore.getState().examples,
     entities: useServiceStore.getState().entities,
+    discoverable: useServiceStore.getState().discoverable,
   });
 
 export const applyServiceSettings = (settings?: ServiceExportSettings) => {
@@ -37,6 +40,7 @@ export const applyServiceSettings = (settings?: ServiceExportSettings) => {
   if (settings.description !== undefined) store.setDescription(settings.description);
   if (settings.examples !== undefined) store.setExamples(settings.examples);
   if (settings.keywords !== undefined) store.setEntities(settings.keywords);
+  store.setDiscoverable(false);
 };
 
 export const serializeFlowArtifact = (

@@ -1,7 +1,7 @@
 declaration:
   call: declare
   version: 0.1
-  description: "Jump to another active service and pass input to it"
+  description: "Jump to another active service and pass input to it. In canvas Test Widget runs (testMode), draft and ready services are allowed as well"
   method: post
   accepts: json
   returns: json
@@ -20,11 +20,19 @@ declaration:
       - field: input
         type: object
         description: "Key-value inputs to pass to the target service"
+      - field: testMode
+        type: boolean
+        description: "Set only by the canvas Test Widget to also allow draft and ready target services"
+
+prepare:
+  assign:
+    test_mode: ${incoming.body?.testMode === true || incoming.body?.testMode === 'true'}
+  next: check_for_body
 
 check_for_body:
   switch:
     - condition: ${incoming.body == null || incoming.body.serviceName == null || incoming.body.serviceName == ""}
-      next: missing_service_name
+      next: check_missing_service_name_in_test_mode
   next: get_service_status
 
 get_service_status:
@@ -34,13 +42,25 @@ get_service_status:
     body:
       service_name: ${incoming.body.serviceName}
   result: service_status_res
-  next: check_service_is_active
+  next: check_service_state
 
-check_service_is_active:
+check_service_state:
   switch:
     - condition: ${service_status_res.response.body[0]?.currentState === 'active'}
-      next: get_new_nonce
-  next: insert_unavailable_service_message
+      next: assign_active_target_path
+    - condition: ${test_mode && ['draft', 'ready'].includes(service_status_res.response.body[0]?.currentState)}
+      next: assign_draft_target_path
+  next: check_unavailable_service_in_test_mode
+
+assign_active_target_path:
+  assign:
+    target_path: "active"
+  next: get_new_nonce
+
+assign_draft_target_path:
+  assign:
+    target_path: "draft"
+  next: get_new_nonce
 
 get_new_nonce:
   call: http.post
@@ -52,17 +72,50 @@ get_new_nonce:
 trigger_service:
   call: http.post
   args:
-    url: "[#SERVICE_RUUTER]/services/active/${incoming.body.serviceName}"
+    url: "[#SERVICE_RUUTER]/services/${target_path}/${incoming.body.serviceName}"
     headers:
       x-ruuter-nonce: ${nonce_res.response.body[0].nonce}
     body:
       chatId: ${incoming.body.chatId}
       authorId: ${incoming.body.authorId}
       input: ${incoming.body.input}
+      testMode: ${test_mode}
   result: trigger_result
 
 return_value:
   return: ${trigger_result.response.body}
+  next: end
+
+check_unavailable_service_in_test_mode:
+  switch:
+    - condition: ${test_mode}
+      next: assign_test_unavailable_service_error
+  next: insert_unavailable_service_message
+
+assign_test_unavailable_service_error:
+  assign:
+    test_error_res:
+      nextServiceTestError:
+        serviceName: ${incoming.body.serviceName}
+        state: ${service_status_res.response.body[0]?.currentState ?? ''}
+  next: return_test_error
+
+check_missing_service_name_in_test_mode:
+  switch:
+    - condition: ${test_mode}
+      next: assign_test_missing_service_error
+  next: missing_service_name
+
+assign_test_missing_service_error:
+  assign:
+    test_error_res:
+      nextServiceTestError:
+        serviceName: ""
+        state: ""
+  next: return_test_error
+
+return_test_error:
+  return: ${test_error_res}
   next: end
 
 insert_unavailable_service_message:

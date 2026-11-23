@@ -4,6 +4,8 @@ import { timer } from 'd3-timer';
 import { useCallback, useEffect, useRef } from 'react';
 import useServiceStore from 'store/services.store';
 import { StepType } from 'types';
+import { CONDITION_LABELS } from 'utils/conditional-flow-utils';
+import { getMcqButtons } from 'utils/mcq-flow-utils';
 
 const options = { duration: 300 };
 
@@ -22,6 +24,24 @@ function getExtraParentEdgeIds(
   return toRemove;
 }
 
+function getBranchLabels(node: Node): readonly string[] | null {
+  if (node.data.stepType === StepType.MultiChoiceQuestion) return getMcqButtons(node).map((button) => button.title);
+  if (node.data.stepType === StepType.Condition) return CONDITION_LABELS;
+  return null;
+}
+
+function getBranchOrder(node: Node, edges: Edge[]): Map<string, number> | null {
+  const labels = getBranchLabels(node);
+  if (!labels) return null;
+  const order = new Map<string, number>();
+  for (const edge of edges.filter((e) => e.source === node.id)) {
+    const index = labels.indexOf(edge.label as string);
+    if (index === -1) return null;
+    order.set(edge.target, index);
+  }
+  return order;
+}
+
 function addVirtualRoot(filteredNodes: Node[], filteredEdges: Edge[]): void {
   const rootNodes = filteredNodes.filter((node) => !filteredEdges.some((edge) => edge.target === node.id));
   if (rootNodes.length <= 1) return;
@@ -31,11 +51,24 @@ function addVirtualRoot(filteredNodes: Node[], filteredEdges: Edge[]): void {
   }
 }
 
+function getTerminalNodePosition(
+  parentNodes: Node[],
+  isParentMultiPath: boolean,
+  orientation: 'horizontal' | 'vertical',
+): Node['position'] {
+  const avg = (axis: 'x' | 'y') => parentNodes.reduce((sum, p) => sum + p.position[axis], 0) / parentNodes.length;
+  const max = (axis: 'x' | 'y') => Math.max(...parentNodes.map((p) => p.position[axis]));
+
+  if (orientation === 'horizontal') return { x: max('x') + 500, y: avg('y') };
+  return { x: avg('x'), y: max('y') + (isParentMultiPath ? 300 : 180) };
+}
+
 function repositionTerminalNodes(
   resultNodes: Node[],
   multiParentNodes: Node[],
   terminalMultiParentIds: Set<string>,
   edges: Edge[],
+  orientation: 'horizontal' | 'vertical',
 ): void {
   for (const node of multiParentNodes) {
     if (!terminalMultiParentIds.has(node.id)) continue;
@@ -45,9 +78,7 @@ function repositionTerminalNodes(
       (n) => n.data.stepType === StepType.MultiChoiceQuestion || n.data.stepType === StepType.Condition,
     );
     if (parentNodes.length > 0) {
-      const avgX = parentNodes.reduce((sum, p) => sum + p.position.x, 0) / parentNodes.length;
-      const maxParentY = Math.max(...parentNodes.map((p) => p.position.y));
-      resultNodes.push({ ...node, position: { x: avgX, y: maxParentY + (isParentMultiPath ? 300 : 180) } });
+      resultNodes.push({ ...node, position: getTerminalNodePosition(parentNodes, isParentMultiPath, orientation) });
     } else {
       resultNodes.push(node);
     }
@@ -81,7 +112,17 @@ function layoutNodes(nodes: Node[], edges: Edge[], orientation: 'horizontal' | '
       .id((d) => d.id)
       .parentId((d: Node) => filteredEdges.find((e: Edge) => e.target === d.id)?.source)(filteredNodes);
 
+    const branchOrders = new Map<string, Map<string, number> | null>();
     hierarchy.sort((a, b) => {
+      const parent = a.parent?.data;
+      if (parent) {
+        if (!branchOrders.has(parent.id)) branchOrders.set(parent.id, getBranchOrder(parent, filteredEdges));
+        const order = branchOrders.get(parent.id);
+        const aIndex = order?.get(a.id as string);
+        const bIndex = order?.get(b.id as string);
+        if (aIndex !== undefined && bIndex !== undefined && aIndex !== bIndex) return aIndex - bIndex;
+      }
+
       const aPos = previousPositions.get(a.id as string);
       const bPos = previousPositions.get(b.id as string);
       if (!aPos || !bPos) return 0;
@@ -94,7 +135,7 @@ function layoutNodes(nodes: Node[], edges: Edge[], orientation: 'horizontal' | '
       .map((d) => ({ ...d.data, position: orientation === 'vertical' ? { x: d.x, y: d.y } : { x: d.y, y: d.x } }))
       .filter((node) => node.id !== 'virtual-root');
 
-    repositionTerminalNodes(resultNodes, multiParentNodes, terminalMultiParentIds, edgesCopy);
+    repositionTerminalNodes(resultNodes, multiParentNodes, terminalMultiParentIds, edgesCopy, orientation);
 
     return resultNodes;
   } catch {

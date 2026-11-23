@@ -146,7 +146,6 @@
   },
   "overview": {
     "services": "Teenused",
-    "commonServices": "Üldteenused",
     "create": "Loo uus teenus",
     "descriptionCopiedSuccessfully": "Kirjeldus edukalt kopeeritud",
     "edit": "Muuda",
@@ -163,6 +162,22 @@
     "export": "Ekspordi",
     "exportAllConfirmation": "Kas olete kindel, et soovite eksportida kõik teenused?",
     "noServicesFound": "Ühtegi teenust ei leitud",
+    "tableState": {
+      "error": {
+        "title": "Teenuseid ei õnnestunud laadida",
+        "description": "Server ei vastanud. Kontrolli ühendust ja proovi uuesti.",
+        "retry": "Proovi uuesti"
+      },
+      "noMatch": {
+        "title": "Filtritele vastavaid teenuseid ei leitud",
+        "titleWithSearch": "Päringule „{{search}}” vastavaid teenuseid ei leitud",
+        "description": "Proovi mõnda teist nime või kirjelduses olevat sõna või tühjenda filtrid, et näha kõiki teenuseid."
+      },
+      "empty": {
+        "title": "Teenuseid veel pole",
+        "description": "Siin kuvatakse sinu loodud teenused koos teenustega, mida need kasutavad, ja teenustega, mis neid kasutavad."
+      }
+    },
     "error": {
       "fetchingServices": "Teenuste päring ebaõnnestus"
     },
@@ -179,7 +194,8 @@
         "inactive": "Mitteaktiivne",
         "draft": "Mustand",
         "ready": "Valmis",
-        "missing": "Puudub"
+        "missing": "Puudub",
+        "deleted": "Kustutatud"
       },
       "toast": {
         "deleted": "Teenus kustutatud",
@@ -190,7 +206,8 @@
           "requestConnection": "Ühendamistaotlus ebaõnnestus",
           "availableIntents": "Saadaolevate teemade päring ebaõnnestus",
           "cancelledConnection": "Ühendamistaotluse tühistamine ebaõnnestus",
-          "failedToConnectToIntent": "Kavatsusega ühenduse loomine ebaõnnestus"
+          "failedToConnectToIntent": "Kavatsusega ühenduse loomine ebaõnnestus",
+          "pin": "Kinnitatud teenuste uuendamine ebaõnnestus"
         },
         "requestedConnection": "Ühendamist taotletakse",
         "cancelledConnection": "Ühendamistaotlus tühistati",
@@ -221,7 +238,110 @@
       "deleteNodeConnections": "Kas soovid kustutada kõik loogikateed, mis on seotud selle plokiga, või jätta need alles?",
       "activationBlocked": {
         "title": "Teenust ei saa aktiveerida. Järgmised seotud teenused peavad olema aktiivsed:"
+      },
+      "setToDraftConfirm": {
+        "message": "Kas soovid viia teenuse mustandiks? Teenus ei ole seejärel enam kasutajatele kättesaadav.",
+        "cancel": "Tühista",
+        "confirm": "Vii mustandiks"
+      },
+      "returnToDraft": {
+        "title": "Muuda teenus mustandiks?",
+        "description": "Järgmised aktiivsed teenused kasutavad seda teenust. Need jäävad aktiivseks, kuid kasutajad ei saa selle ühenduseni jõudes teenusevooga jätkata.",
+        "cancel": "Tühista",
+        "confirm": "Muuda mustandiks"
       }
+    },
+    "table": {
+      "name": "Teenuse nimetus",
+      "dependencies": "Seosed",
+      "status": "Staatus",
+      "index": "Indeks",
+      "actions": "Tegevused",
+      "sort": "Sorteeri"
+    },
+    "serviceInfo": {
+      "title": "Teenuse andmed",
+      "name": "Teenuse nimi",
+      "description": "Teenuse kirjeldus",
+      "examples": "Näidisküsimused",
+      "keywords": "Märksõnad",
+      "open": "Näita teenuse andmeid",
+      "empty": "Puudub"
+    },
+    "dependencies": {
+      "title": "Seosed",
+      "subtitle": "Seoseid näidatakse valitud teenuse suhtes.",
+      "incomingLabel": "Seda teenust kasutavad",
+      "incomingDescription": "mitu teist teenust kasutab valitud teenust",
+      "outgoingLabel": "See teenus kasutab",
+      "outgoingDescription": "mitut teist teenust valitud teenus kasutab",
+      "problems_one": "{{count}} probleem",
+      "problems_other": "{{count}} probleemi",
+      "open": "Näita seoste selgitust",
+      "incomingHeading": "Seda teenust kasutab ({{count}})",
+      "outgoingHeading": "See teenus kasutab ({{count}})",
+      "none": "Seosed puuduvad",
+      "deletedReference": "Seos kustutatud teenusega",
+      "loading": "Seoste laadimine...",
+      "loadFailed": "Seoste laadimine ebaõnnestus",
+      "expand": "Näita seoseid",
+      "collapse": "Peida seosed",
+      "problemTitle": "Probleem seosetes",
+      "problemDescription_one": "{{count}} seos kustutatud teenusega",
+      "problemDescription_other": "{{count}} seost kustutatud teenustega"
+    },
+    "index": {
+      "reindex": "Indekseeri",
+      "reindexOnlyActive": "Indekseerida saab ainult aktiivseid teenuseid",
+      "status": {
+        "SUCCESS": "Indekseeritud",
+        "FAILED": "Indekseerimine ebaõnnestus",
+        "IN_PROGRESS": "Indekseerimine käib",
+        "NONE": "Indekseerimata"
+      },
+      "toast": {
+        "started": "Indekseerimine algas",
+        "failed": "Indekseerimine ebaõnnestus",
+        "indexFailed": "Indekseerimine ebaõnnestus: {{name}}"
+      },
+      "failureReason": "Viimane indekseerimine ebaõnnestus: {{reason}}",
+      "failureUnknown": "Viimane indekseerimine ebaõnnestus",
+      "validation": {
+        "VALIDATION_NAME_MISSING": "Indekseerimiseks on vaja teenuse nime.",
+        "VALIDATION_DESCRIPTION_MISSING": "Indekseerimiseks on vaja teenuse kirjeldust.",
+        "VALIDATION_SERVICE_NOT_ACTIVE": "Indekseerida saab ainult aktiivseid teenuseid.",
+        "VALIDATION_SERVICE_NOT_DISCOVERABLE": "Indekseerida saab ainult leitavaid teenuseid."
+      }
+    },
+    "pin": {
+      "pin": "Nähtavale",
+      "pinned": "Nähtaval"
+    },
+    "copiedToClipboard": "Kopeeritud",
+    "filters": {
+      "searchLabel": "Otsi teenuseid",
+      "searchPlaceholder": "Otsi teenuseid...",
+      "dependenciesLabel": "Seosed",
+      "statusLabel": "Staatus",
+      "clear": "Tühjenda filtrid",
+      "filtersCleared": "Filtrid tühjendati, et teenust kuvada",
+      "serviceNotFound": "Teenust ei leitud",
+      "dependencies": {
+        "all": "Kõik seosed",
+        "yes": "Seostega",
+        "no": "Seosteta",
+        "problematic": "Probleemne"
+      },
+      "status": {
+        "all": "Kõik staatused"
+      }
+    },
+    "pagination": {
+      "range": "Kuva {{from}}–{{to}} / {{total}} teenusest",
+      "pageSize": "Kuva",
+      "previous": "Eelmine leht",
+      "next": "Järgmine leht",
+      "page": "Leht {{page}}"
     }
   },
   "connectionRequests": {
@@ -256,8 +376,11 @@
       "placeholder": "Lisa teenusele vajalikud märksõnad (nt. ‘riigipüha’, ‘aasta’)",
       "tooltip": "Sisesta teenuse tuvastamiseks olulised märksõnad, mida tehisintellekt kasutab kavatsuse tuvastamisel."
     },
+    "discoverable": {
+      "title": "Avastatav tehisintellektile",
+      "tooltip": "Kui see on sisse lülitatud, saab Bürokratt kasutaja pöördumise põhjal teenuse tuvastada ja käivitada. Teenus peab olema aktiivne. Väljalülitatud teenust saab endiselt käivitada teise teenuse kaudu."
+    },
     "test": "Testi URLi",
-    "isCommon": "Üldteenus",
     "slot": "Mälukoht",
     "endpoint": {
       "add": "+ Lisa API otspunkt",
@@ -324,6 +447,8 @@
       "unconnectedServiceBlocks": "Ühenda kõik teenuse plokid.",
       "unfinishedFlows": "Lõpeta kõik lõpetamata vood.",
       "unresolvedJumpToService": "Lahenda kõik järgmise teenuse viited.",
+      "unresolvedEndpointReferences": "Paranda viited kustutatud API päringutele: {{nodes}}.",
+      "unresolvedEndpointReference": "See samm viitab kustutatud API päringule.",
       "savedSuccessfully": "Salvestatud",
       "success": "Õnnestus",
       "failed": "Ebaõnnestus",
@@ -343,7 +468,8 @@
       "saveAndContinue": "Salvesta ja jätka"
     },
     "titleRequired": "Pealkiri on kohustuslik",
-    "chooseMemorySlots": "Vali mälukohad"
+    "chooseMemorySlots": "Vali mälukohad",
+    "unsavedChangesIndicator": "Salvestamata muudatused"
   },
   "serviceFlow": {
     "serviceConfiguration": "Seaded",
@@ -353,7 +479,7 @@
       "clientInput": "Kliendi sisend",
       "assign": "Määra",
       "condition": "Tingimus",
-      "multiChoiceQuestion": "Mitmevalikuline küsimus",
+      "multiChoiceQuestion": "Valikvastustega küsimus",
       "openNewWebpage": "Uue veebilehe avamine",
       "fileGeneration": "Faili genereerimine",
       "fileSigning": "Faili allkirjastamine",
@@ -375,7 +501,7 @@
       },
       "jumpToService": {
         "title": "Järgmine teenus",
-        "targetService": "Sihtteenус",
+        "targetService": "Järgmine teenus",
         "selectService": "Vali teenus...",
         "noActiveServices": "Aktiivseid teenuseid pole saadaval",
         "parameters": "Parameetrid",
@@ -430,13 +556,13 @@
     },
     "mcq": {
       "selectBranchTitle": "Vali haru",
-      "emptyBranchesMessage": "Sellel valikvastuse küsimusel on {{count}} tühja haru. Millisele harule soovid ühendada?"
+      "emptyBranchesMessage": "Sellel valikvastustega küsimusel on {{count}} tühja haru. Millisele harule soovid ühendada?"
     },
     "condition": {
       "emptyPathsMessage": "Sellel tingimusliku sõlmel on {{count}} tühja teed. Millisele teele soovid ühendada?"
     },
     "previousVariables": {
-      "assignElements": "Määratud Väärtused",
+      "assignElements": "Määratud väärtused",
       "noName": "<Nimeta>",
       "environmentVariables": {
         "title": "Keskkonnamuutujad"
@@ -527,7 +653,7 @@
       "public": "Avalik"
     },
     "multiChoiceQuestion": {
-      "title": "Mitmevalikuline küsimus",
+      "title": "Valikvastustega küsimus",
       "questionPlaceholder": "Sisesta küsimus",
       "questionError": "Küsimus on kohustuslik",
       "addButton": "Lisa nupp +",
@@ -609,6 +735,13 @@
       "message": "Veateade"
     },
     "service-test-success": "Teenuse test on edukas",
+    "next-service-test-error": {
+      "unavailable": "Järgmise teenuse sihtteenus ei ole testimiseks saadaval. Testida saab ainult aktiivseid, valmis ja mustandi olekus teenuseid.",
+      "missing": "Järgmise teenuse sihtteenus puudub. Valige teenus järgmise teenuse sammus.",
+      "serviceName": "Sihtteenus",
+      "state": "Olek",
+      "notFound": "Ei leitud"
+    },
     "title": "TEST",
     "input-placeholder": "Sisestage sisend, eraldatud komadega",
     "service-input": "Teenuse sisend",
@@ -764,6 +897,15 @@
     "testSuccess": "Test õnnestus",
     "testError": "Test ebaõnnestus",
     "reIndexSuccess": "Indekseerimine algas",
-    "reIndexError": "Indekseerimine ebaõnnestus"
+    "reIndexError": "Indekseerimine ebaõnnestus",
+    "indexFailed": "Indekseerimine ebaõnnestus: {{name}}",
+    "indexFailureReason": "Viimane indekseerimine ebaõnnestus: {{reason}}",
+    "indexFailureUnknown": "Viimane indekseerimine ebaõnnestus",
+    "indexValidation": {
+      "VALIDATION_NAME_MISSING": "Indekseerimiseks on vaja otspunkti nime.",
+      "VALIDATION_DESCRIPTION_MISSING": "Indekseerimiseks on vaja API kirjeldust.",
+      "VALIDATION_URL_MISSING": "Indekseerimiseks on vaja valitud otspunkti URL-i.",
+      "VALIDATION_METHOD_MISSING": "Indekseerimiseks on vaja valitud HTTP meetodit."
+    }
   }
 }

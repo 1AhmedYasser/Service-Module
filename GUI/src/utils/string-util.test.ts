@@ -85,6 +85,13 @@ describe('String Utils', () => {
       expect(toSnakeCase('test  value')).toBe('test_value');
     });
 
+    it('should normalize Estonian characters', () => {
+      expect(toSnakeCase('Määra-1')).toBe('maara_1');
+      expect(toSnakeCase('Vastuse ümberarvutus')).toBe('vastuse_umberarvutus');
+      expect(toSnakeCase('Õun šokolaad žürii')).toBe('oun_sokolaad_zurii');
+      expect(toSnakeCase('Müü')).toBe('muu');
+    });
+
     it('should handle edge cases', () => {
       expect(toSnakeCase('')).toBe('');
       expect(toSnakeCase('   ')).toBe('');

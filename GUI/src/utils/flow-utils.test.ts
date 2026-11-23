@@ -5,7 +5,12 @@ import { Step } from 'types/step';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  generateUniqueLabel,
+  getEndpointResultNameChanges,
+  getNextMcqNodeId,
   getNodeLabel,
+  isStepNameTaken,
+  replaceEndpointResultNames,
   validateAssignStep,
   validateDynamicChoicesStep,
   validateFileGenerateStep,
@@ -535,16 +540,33 @@ describe('getNodeLabel', () => {
     expect(result).toBe('Test Step - 2');
   });
 
-  it('should only consider nodes of the same step type', () => {
+  it('should skip numbers whose step name is already used by a node of another type', () => {
     const step = createMockStep('Test Step', StepType.Textfield);
     const nodes: Node[] = [
       createMockNode('Test Step - 1', StepType.Textfield),
-      createMockNode('Test Step - 2', StepType.Input), // Different type - should be ignored
+      createMockNode('Test Step - 2', StepType.Input),
       createMockNode('Test Step - 3', StepType.Textfield),
     ];
 
     const result = getNodeLabel(step, nodes);
-    expect(result).toBe('Test Step - 2'); // Only considers Textfield nodes (1 and 3), so next is 2
+    expect(result).toBe('Test Step - 4');
+  });
+
+  it('should skip numbers whose normalized step name is already used', () => {
+    const step = createMockStep('Määra', StepType.Assign);
+    const nodes: Node[] = [createMockNode('maara 1', StepType.Textfield)];
+
+    const result = getNodeLabel(step, nodes);
+    expect(result).toBe('Määra - 2');
+  });
+
+  it('should use stored MCQ node ids when numbering a new MCQ node', () => {
+    const step = createMockStep('Multi choice question', StepType.MultiChoiceQuestion);
+    const renamedMcq = createMockNode('Küsimus', StepType.MultiChoiceQuestion);
+    renamedMcq.data.mcqNodeId = 1;
+
+    const result = getNodeLabel(step, [renamedMcq]);
+    expect(result).toBe('Multi choice question - 2');
   });
 
   it('should handle nodes with different base labels', () => {
@@ -624,5 +646,118 @@ describe('getNodeLabel', () => {
 
     const result = getNodeLabel(step, nodes);
     expect(result).toBe('Test Step - 3');
+  });
+
+  it('should number MCQ nodes uniquely across old and new label wording', () => {
+    const step = createMockStep('Valikvastustega küsimus', StepType.MultiChoiceQuestion);
+    const nodes: Node[] = [
+      createMockNode('Mitmevalikuline küsimus - 1', StepType.MultiChoiceQuestion),
+      createMockNode('Valikvastustega küsimus - 2', StepType.MultiChoiceQuestion),
+    ];
+
+    const result = getNodeLabel(step, nodes);
+    expect(result).toBe('Valikvastustega küsimus - 3');
+  });
+
+  it('should number MCQ nodes uniquely regardless of UI language', () => {
+    const step = createMockStep('Multiple-choice question', StepType.MultiChoiceQuestion);
+    const nodes: Node[] = [
+      createMockNode('Valikvastustega küsimus - 1', StepType.MultiChoiceQuestion),
+      createMockNode('Multi-choice question - 3', StepType.MultiChoiceQuestion),
+    ];
+
+    const result = getNodeLabel(step, nodes);
+    expect(result).toBe('Multiple-choice question - 2');
+  });
+
+  it('should treat MCQ labels without a trailing number as number 1', () => {
+    const step = createMockStep('Valikvastustega küsimus', StepType.MultiChoiceQuestion);
+    const nodes: Node[] = [createMockNode('Custom question', StepType.MultiChoiceQuestion)];
+
+    const result = getNodeLabel(step, nodes);
+    expect(result).toBe('Valikvastustega küsimus - 2');
+  });
+});
+
+describe('endpoint result name references', () => {
+  const endpointNode = (id: string, name: string) =>
+    ({ id, position: { x: 0, y: 0 }, data: { stepType: StepType.UserDefined, endpoint: { name } } }) as unknown as Node;
+  const assignNode = (value: string) =>
+    ({
+      id: 'assign',
+      position: { x: 0, y: 0 },
+      data: { stepType: StepType.Assign, assignElements: [{ id: '1', key: 'a', value }] },
+    }) as unknown as Node;
+
+  const first = endpointNode('11111111-aaaa', 'API');
+  const second = endpointNode('22222222-bbbb', 'API');
+
+  it('detects result name change when the second API Call is renamed', () => {
+    const changes = getEndpointResultNameChanges([first, second], [first, endpointNode(second.id, 'Renamed')]);
+    expect(changes).toEqual(new Map([['API_22222222_res', 'Renamed_res']]));
+  });
+
+  it('detects cascading changes when the first API Call is renamed', () => {
+    const changes = getEndpointResultNameChanges([first, second], [endpointNode(first.id, 'Renamed'), second]);
+    expect(changes).toEqual(
+      new Map([
+        ['API_res', 'Renamed_res'],
+        ['API_22222222_res', 'API_res'],
+      ]),
+    );
+  });
+
+  it('returns no changes when the name is unchanged', () => {
+    expect(getEndpointResultNameChanges([first, second], [first, second]).size).toBe(0);
+  });
+
+  it('rewrites references in nested data in a single pass', () => {
+    const changes = new Map([
+      ['API_res', 'Renamed_res'],
+      ['API_22222222_res', 'API_res'],
+    ]);
+    const node = assignNode('${API_22222222_res.response.body.x} ${API_res.response.body} ${MY_API_res.response}');
+    const result = replaceEndpointResultNames(node.data, changes) as any;
+    expect(result.assignElements[0].value).toBe(
+      '${API_res.response.body.x} ${Renamed_res.response.body} ${MY_API_res.response}',
+    );
+    expect((node.data as any).assignElements[0].value).toContain('API_22222222_res');
+  });
+});
+
+describe('step name uniqueness', () => {
+  const createNode = (id: string, label: string, stepType = StepType.Textfield, mcqNodeId?: number): Node => ({
+    id,
+    position: { x: 0, y: 0 },
+    data: { label, stepType, mcqNodeId },
+  });
+
+  it('isStepNameTaken compares normalized step names and ignores the excluded node', () => {
+    const nodes = [createNode('1', 'Vastuse ümberarvutus')];
+
+    expect(isStepNameTaken('vastuse-umberarvutus', nodes)).toBe(true);
+    expect(isStepNameTaken('Vastuse ümberarvutus', nodes, '1')).toBe(false);
+    expect(isStepNameTaken('Muu nimi', nodes)).toBe(false);
+  });
+
+  it('isStepNameTaken rejects reserved step names', () => {
+    expect(isStepNameTaken('Prepare', [])).toBe(true);
+    expect(isStepNameTaken('Format messages', [])).toBe(true);
+  });
+
+  it('generateUniqueLabel skips labels whose normalized step name is used', () => {
+    const nodes = [createNode('1', 'Määra - 1'), createNode('2', 'maara 2')];
+
+    expect(generateUniqueLabel('Määra - 1', nodes)).toBe('Määra - 3');
+  });
+
+  it('getNextMcqNodeId returns the first id not used by stored or label-derived MCQ ids', () => {
+    const nodes = [
+      createNode('1', 'Multi choice question - 1', StepType.MultiChoiceQuestion),
+      createNode('2', 'Küsimus', StepType.MultiChoiceQuestion, 2),
+      createNode('3', 'Textfield - 3'),
+    ];
+
+    expect(getNextMcqNodeId(nodes)).toBe(3);
   });
 });

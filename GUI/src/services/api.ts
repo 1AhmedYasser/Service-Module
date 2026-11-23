@@ -1,5 +1,7 @@
 import axios, { AxiosError, AxiosRequestConfig } from 'axios';
 
+import { redirectToLoginIfUnauthorized } from './handle-unauthorized';
+
 const defaultConfig = {
   baseURL: import.meta.env.REACT_APP_BASE_API_PATH,
   headers: {
@@ -29,6 +31,7 @@ instance.interceptors.response.use(
     return response;
   },
   (error: AxiosError) => {
+    redirectToLoginIfUnauthorized(error);
     return Promise.reject(new Error(error.message));
   },
 );

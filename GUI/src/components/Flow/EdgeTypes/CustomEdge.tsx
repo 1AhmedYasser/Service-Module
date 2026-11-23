@@ -183,7 +183,7 @@ function CustomEdge({
             <ApiElementsPanel
               onAddToCanvas={(step) => {
                 onEdgeAdd(step);
-                useServiceStore.getState().loadEndpointsResponseVariables();
+                setTimeout(() => useServiceStore.getState().loadEndpointsResponseVariables(), 0);
                 setDropdownOpen(false);
                 setHasUnsavedChanges(true);
               }}

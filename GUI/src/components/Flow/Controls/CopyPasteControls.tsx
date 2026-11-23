@@ -6,7 +6,7 @@ import { MdContentCopy, MdContentCut, MdContentPaste } from 'react-icons/md';
 import useServiceStore from 'store/new-services.store';
 import useToastStore from 'store/toasts.store';
 import { StepType } from 'types';
-import { generateUniqueId, generateUniqueLabel } from 'utils/flow-utils';
+import { generateUniqueId, generateUniqueLabel, getNextMcqNodeId } from 'utils/flow-utils';
 
 interface ClipboardData {
   nodes: Node[];
@@ -129,6 +129,7 @@ const CopyPasteControls: FC<CopyPasteControlsProps> = ({ onNodesDelete }) => {
     const currentNodes = getNodes();
     const idMap = new Map<string, string>();
     const processedLabels = new Set<string>();
+    const pastedMcqNodes: Node[] = [];
 
     const newNodes = clipboardData.nodes.map((node) => {
       const newId = generateUniqueId();
@@ -147,8 +148,11 @@ const CopyPasteControls: FC<CopyPasteControlsProps> = ({ onNodesDelete }) => {
       const uniqueLabel = generateUniqueLabel(node.data.label as string, allExistingNodes);
       processedLabels.add(uniqueLabel);
 
+      const isMcq = node.data.stepType === StepType.MultiChoiceQuestion;
+      const mcqNodeId = isMcq ? getNextMcqNodeId([...currentNodes, ...pastedMcqNodes]) : undefined;
+
       const position = node.position ?? { x: 0, y: 0 };
-      return {
+      const newNode = {
         ...node,
         id: newId,
         position: { x: position.x, y: position.y },
@@ -156,11 +160,14 @@ const CopyPasteControls: FC<CopyPasteControlsProps> = ({ onNodesDelete }) => {
         data: {
           ...node.data,
           label: uniqueLabel,
+          mcqNodeId,
           onDelete: useServiceStore.getState().onDelete,
           setClickedNode: useServiceStore.getState().setClickedNode,
           onEdit: useServiceStore.getState().handleNodeEdit,
         },
       };
+      if (isMcq) pastedMcqNodes.push(newNode);
+      return newNode;
     });
 
     const newEdges = clipboardData.edges.map((edge) => ({

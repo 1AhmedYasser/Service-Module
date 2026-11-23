@@ -1,0 +1,124 @@
+declaration:
+  call: declare
+  version: 0.1
+  description: "Services overview listing with the current user's pinned services"
+  method: post
+  accepts: json
+  returns: json
+  namespace: service
+  allowlist:
+    header:
+      - field: cookie
+        type: string
+        description: "Cookie field"
+    body:
+      - field: page
+        type: number
+        description: "Body field 'page'"
+      - field: page_size
+        type: number
+        description: "Body field 'page_size'"
+      - field: sorting
+        type: string
+        description: "Body field 'sorting'"
+      - field: search
+        type: string
+        description: "Body field 'search'"
+      - field: state
+        type: string
+        description: "Body field 'state'"
+      - field: dependencies
+        type: string
+        description: "Body field 'dependencies'"
+
+extract_request_data:
+  assign:
+    page: ${incoming.body.page ?? 1}
+    page_size: ${incoming.body.page_size ?? 10}
+    sorting: ${incoming.body.sorting ?? ''}
+    search: ${incoming.body.search ?? ''}
+    state: ${incoming.body.state ?? ''}
+    dependencies: ${incoming.body.dependencies ?? 'all'}
+
+get_user_info:
+  call: http.post
+  args:
+    url: "[#SERVICE_TIM]/jwt/custom-jwt-userinfo"
+    contentType: plaintext
+    headers:
+      cookie: ${incoming.headers.cookie}
+    plaintext: "customJwtCookie"
+  result: res
+
+check_user_info_response:
+  switch:
+    - condition: ${200 <= res.response.statusCodeValue && res.response.statusCodeValue < 300 && res.response.body != null}
+      next: assign_id_code
+  next: return_unauthorized
+
+assign_id_code:
+  assign:
+    idCode: ${res.response.body.idCode}
+
+# Fail indexing attempts that exceeded the timeout before reading, so the list (and GUI polling)
+# never shows an attempt as Processing indefinitely.
+timeout_llm_index_attempts:
+  call: http.post
+  args:
+    url: "[#SERVICE_RESQL]/services/timeout_service_llm_index_attempts"
+    body: {}
+  result: timeout_res
+
+check_timed_out:
+  switch:
+    - condition: ${timeout_res.response.body != null && timeout_res.response.body.length > 0}
+      next: log_timed_out
+  next: get_services_list
+
+log_timed_out:
+  log: "LLM indexing failed (Indexing timed out after 15 minutes) for services: ${JSON.stringify(timeout_res.response.body)}"
+  next: get_services_list
+
+get_services_list:
+  call: http.post
+  args:
+    url: "[#SERVICE_RESQL]/get-services-list"
+    body:
+      page: ${page}
+      page_size: ${page_size}
+      sorting: ${sorting}
+      search: ${search}
+      state: ${state}
+      dependencies: ${dependencies}
+      exclude_pinned_for: ${idCode}
+  limit: 600
+  result: services_res
+
+get_pinned_services_list:
+  call: http.post
+  args:
+    url: "[#SERVICE_RESQL]/services/get_pinned_services_list"
+    body:
+      user_id_code: ${idCode}
+      sorting: ${sorting}
+      search: ${search}
+      state: ${state}
+      dependencies: ${dependencies}
+  limit: 600
+  result: pinned_res
+
+prepare_results:
+  assign:
+    results:
+      services: ${services_res.response.body}
+      pinned: ${pinned_res.response.body}
+
+return_ok:
+  status: 200
+  return: ${results}
+  next: end
+
+return_unauthorized:
+  status: 401
+  return: "unauthorized"
+  next: end

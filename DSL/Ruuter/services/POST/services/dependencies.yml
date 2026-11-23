@@ -1,0 +1,41 @@
+declaration:
+  call: declare
+  version: 0.1
+  description: "Services using and used by the given service"
+  method: post
+  accepts: json
+  returns: json
+  namespace: service
+  allowlist:
+    header:
+      - field: cookie
+        type: string
+        description: "Cookie field"
+    body:
+      - field: service_id
+        type: string
+        description: "Body field 'service_id'"
+
+check_for_required_parameters:
+  switch:
+    - condition: ${!incoming.body || !incoming.body.service_id}
+      next: return_incorrect_request
+  next: get_service_dependencies
+
+get_service_dependencies:
+  call: http.post
+  args:
+    url: "[#SERVICE_RESQL]/services/get_service_dependencies"
+    body:
+      service_id: ${incoming.body.service_id}
+  result: dependencies_res
+
+return_ok:
+  status: 200
+  return: ${dependencies_res.response.body}
+  next: end
+
+return_incorrect_request:
+  status: 400
+  return: "Required parameter(s) missing"
+  next: end

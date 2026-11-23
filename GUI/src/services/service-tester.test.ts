@@ -15,6 +15,7 @@ import {
   hasResponseData,
   isErrorResponse,
   reportInvalidNodes,
+  reportNextServiceTestError,
   translateError,
   updateNodeTestState,
   validateTestEnvironment,
@@ -49,7 +50,7 @@ vi.mock('store/test-services.store', () => ({
 }));
 
 vi.mock('utils/string-util', () => ({
-  fromSnakeCase: vi.fn((str) => str),
+  toSnakeCase: vi.fn((str) => str),
 }));
 
 vi.mock('utils/flow-utils', () => ({
@@ -750,7 +751,7 @@ describe('executeServiceTest', () => {
 
     await executeServiceTest(headerValue, state, name, input, nonce);
 
-    expect(mockPost).toHaveBeenCalledWith(expectedEndpoint, { input });
+    expect(mockPost).toHaveBeenCalledWith(expectedEndpoint, { input, testMode: true });
   });
 
   it('should return the result from post call', async () => {
@@ -985,7 +986,7 @@ describe('updateNodeTestState', () => {
 describe('handleTestError', () => {
   let mockServiceStore: any;
   let mockTestStore: any;
-  let mockFromSnakeCase: any;
+  let mockToSnakeCase: any;
   let mockAddError: any;
 
   beforeEach(async () => {
@@ -1002,7 +1003,7 @@ describe('handleTestError', () => {
     };
     mockTestStore = vi.mocked((await import('store/test-services.store')).default);
     mockTestStore.getState.mockReturnValue({ addError: mockAddError });
-    mockFromSnakeCase = vi.mocked((await import('utils/string-util')).fromSnakeCase);
+    mockToSnakeCase = vi.mocked((await import('utils/string-util')).toSnakeCase);
   });
 
   it('should handle error with response data and valid error response', () => {
@@ -1019,7 +1020,7 @@ describe('handleTestError', () => {
     handleTestError(error, mockServiceStore as unknown as ServiceStoreState);
 
     expect(mockAddError).toHaveBeenCalledWith('chat.service-test-error.title', expect.any(Object));
-    expect(mockFromSnakeCase).toHaveBeenCalledWith('test_step');
+    expect(mockToSnakeCase).toHaveBeenCalledWith('test_step');
   });
 
   it('should handle error without response data', () => {
@@ -1267,7 +1268,11 @@ describe('executeService', () => {
     await executeService(state, name, input, nonce);
 
     expect(mockTestService).toHaveBeenCalledWith(state, name);
-    expect(mockApi).toHaveBeenCalledWith('/test-endpoint', { input }, { headers: { 'x-ruuter-nonce': nonce } });
+    expect(mockApi).toHaveBeenCalledWith(
+      '/test-endpoint',
+      { input, testMode: true },
+      { headers: { 'x-ruuter-nonce': nonce } },
+    );
   });
 });
 
@@ -1306,5 +1311,42 @@ describe('addSuccessMessages', () => {
     expect(() => addSuccessMessages(responseData)).not.toThrow();
     expect(mockAddBotMessage).not.toHaveBeenCalled();
     expect(mockAddSuccess).toHaveBeenCalledWith('chat.service-test-success');
+  });
+});
+
+describe('reportNextServiceTestError', () => {
+  let mockAddError: ReturnType<typeof vi.fn>;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    mockAddError = vi.fn();
+    const mockTestStore = vi.mocked((await import('store/test-services.store')).default);
+    (mockTestStore as any).getState.mockReturnValue({ addError: mockAddError });
+    vi.mocked(t).mockImplementation(((key: string, options?: { defaultValue?: string }) =>
+      options?.defaultValue ? `${key}|${options.defaultValue}` : key) as unknown as typeof t);
+  });
+
+  it('should report an unavailable target with its name and translated state', () => {
+    reportNextServiceTestError({ serviceName: 'service_b', state: 'inactive' });
+
+    expect(mockAddError).toHaveBeenCalledWith('chat.next-service-test-error.unavailable', {
+      'chat.next-service-test-error.serviceName': 'service_b',
+      'chat.next-service-test-error.state': 'overview.service.states.inactive|inactive',
+    });
+  });
+
+  it('should report a target that does not exist as not found', () => {
+    reportNextServiceTestError({ serviceName: 'deleted_service', state: '' });
+
+    expect(mockAddError).toHaveBeenCalledWith('chat.next-service-test-error.unavailable', {
+      'chat.next-service-test-error.serviceName': 'deleted_service',
+      'chat.next-service-test-error.state': 'chat.next-service-test-error.notFound',
+    });
+  });
+
+  it('should report a missing target when no service name is configured', () => {
+    reportNextServiceTestError({ serviceName: '', state: '' });
+
+    expect(mockAddError).toHaveBeenCalledWith('chat.next-service-test-error.missing');
   });
 });

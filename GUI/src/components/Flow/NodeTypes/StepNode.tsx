@@ -30,6 +30,7 @@ const StepNode: FC<StepNodeProps> = ({ id, data }) => {
   const isUnconnected = flowCompleteness.unconnectedNodeIds.has(id);
   const isUnresolvedJumpToService =
     data.stepType === StepType.JumpToService && flowCompleteness.unresolvedJumpToServiceNodeIds.has(id);
+  const isUnresolvedEndpointReference = flowCompleteness.unresolvedEndpointReferenceNodeIds.has(id);
 
   const jumpToServiceId = data.jumpToService?.serviceId;
   const isJumpToServiceValid = !!jumpToServiceId && navigableServices.has(jumpToServiceId);
@@ -110,12 +111,22 @@ const StepNode: FC<StepNodeProps> = ({ id, data }) => {
       direction="vertical"
       align="left"
     >
-      <p>
+      <p
+        title={data.label}
+        style={{
+          maxWidth: '100%',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          paddingRight: 40,
+          boxSizing: 'border-box',
+        }}
+      >
         <TestStatue
           isTestedAndPassed={isTestedAndPassed}
           data={data}
           isUnconnected={isUnconnected}
           isUnresolvedJumpToService={isUnresolvedJumpToService}
+          isUnresolvedEndpointReference={isUnresolvedEndpointReference}
         />
         {data.label}
       </p>
@@ -201,15 +212,19 @@ const TestStatue = ({
   data,
   isUnconnected,
   isUnresolvedJumpToService,
+  isUnresolvedEndpointReference,
 }: {
   isTestedAndPassed: boolean | null;
   data: NodeDataProps;
   isUnconnected: boolean;
   isUnresolvedJumpToService: boolean;
+  isUnresolvedEndpointReference: boolean;
 }) => {
   if (isUnconnected) return <ExclamationBadge title={i18next.t('newService.toast.unconnectedServiceBlocks')} />;
   if (isUnresolvedJumpToService)
     return <ExclamationBadge title={i18next.t('newService.toast.unresolvedJumpToService')} />;
+  if (isUnresolvedEndpointReference)
+    return <ExclamationBadge title={i18next.t('newService.toast.unresolvedEndpointReference')} />;
   if (isTestedAndPassed) return <CheckBadge />;
   if (!validateStep(data).isValid) return <ExclamationBadge />;
   return <ExclamationBadge color="purple" />;

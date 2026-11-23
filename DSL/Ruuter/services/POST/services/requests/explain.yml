@@ -49,6 +49,7 @@ request_explain_get:
     headers: $! current_request.headers !
     query: $! current_request.params !
   result: res
+  error: check_get_redirect
   next: check_get_redirect
 
 check_get_redirect:
@@ -64,6 +65,7 @@ retry_get_with_slash:
     headers: $! current_request.headers !
     query: $! current_request.params !
   result: res
+  error: assign_result
   next: assign_result
 
 request_explain_post:
@@ -74,6 +76,7 @@ request_explain_post:
     query: $! current_request.params !
     body: $! current_request.body !
   result: res
+  error: check_post_redirect
   next: check_post_redirect
 
 check_post_redirect:
@@ -90,11 +93,30 @@ retry_post_with_slash:
     query: $! current_request.params !
     body: $! current_request.body !
   result: res
+  error: assign_result
   next: assign_result
 
 assign_result:
+  switch:
+    - condition: ${res.response.statusCodeValue >= 200 && res.response.statusCodeValue < 300}
+      next: assign_success_result
+    - condition: ${String(res.response.body).startsWith('Failed to process upstream response')}
+      next: assign_empty_result
+  next: assign_error_result
+
+assign_success_result:
   assign:
-    result_res: ${[res.response.body]}
+    result_res: ${[res.response.body ?? new Object()]}
+  next: check_responses_list
+
+assign_empty_result:
+  assign:
+    result_res: ${[new Object()]}
+  next: check_responses_list
+
+assign_error_result:
+  assign:
+    result_res: ${[Object.fromEntries([['statusCode', res.response.statusCodeValue], ['error', res.response.body]])]}
   next: check_responses_list
 
 check_responses_list:

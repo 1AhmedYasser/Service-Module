@@ -146,7 +146,6 @@
   },
   "overview": {
     "services": "Services",
-    "commonServices": "Common Services",
     "create": "Create new service",
     "descriptionCopiedSuccessfully": "Description copied successfully",
     "edit": "Edit",
@@ -163,6 +162,22 @@
     "export": "Export",
     "exportAllConfirmation": "Are you sure you want to export all services?",
     "noServicesFound": "No services found",
+    "tableState": {
+      "error": {
+        "title": "Couldn't load services",
+        "description": "The server didn't respond. Check your connection and try again.",
+        "retry": "Try again"
+      },
+      "noMatch": {
+        "title": "No services match your filters",
+        "titleWithSearch": "No services match “{{search}}”",
+        "description": "Try a different name or word from the description, or clear the filters to see all services."
+      },
+      "empty": {
+        "title": "No services yet",
+        "description": "Services you create show up here, along with the services they use and the services that use them."
+      }
+    },
     "error": {
       "fetchingServices": "Error fetching services"
     },
@@ -179,7 +194,8 @@
         "inactive": "Inactive",
         "draft": "Draft",
         "ready": "Ready",
-        "missing": "Missing"
+        "missing": "Missing",
+        "deleted": "Deleted"
       },
       "toast": {
         "deleted": "Service has been successfully deleted",
@@ -190,7 +206,8 @@
           "requestConnection": "Connection Request failed",
           "availableIntents": "Failed to retrieve available intents",
           "cancelledConnection": "Connection Request Cancellation failed",
-          "failedToConnectToIntent": "Failed to connect to intent"
+          "failedToConnectToIntent": "Failed to connect to intent",
+          "pin": "Failed to update pinned services"
         },
         "requestedConnection": "Connection Requested",
         "cancelledConnection": "Connection Request Cancelled",
@@ -221,7 +238,110 @@
       "deleteNodeConnections": "Would you like to also delete all the logic paths connected to this node or leave them hanging?",
       "activationBlocked": {
         "title": "Cannot activate service. The following connected services must be Active:"
+      },
+      "setToDraftConfirm": {
+        "message": "Set this service to Draft? It will no longer be available for the end-user.",
+        "cancel": "Cancel",
+        "confirm": "Set to Draft"
+      },
+      "returnToDraft": {
+        "title": "Return service to Draft?",
+        "description": "The following Active services use this service. They will remain Active, but users who reach this connection will not be able to continue the service flow.",
+        "cancel": "Cancel",
+        "confirm": "Return to Draft"
       }
+    },
+    "table": {
+      "name": "Service name",
+      "dependencies": "Dependencies",
+      "status": "Status",
+      "index": "Index",
+      "actions": "Actions",
+      "sort": "Sort"
+    },
+    "serviceInfo": {
+      "title": "Service details",
+      "name": "Service name",
+      "description": "Service description",
+      "examples": "Example questions",
+      "keywords": "Keywords",
+      "open": "Show service details",
+      "empty": "Not set"
+    },
+    "dependencies": {
+      "title": "Dependencies",
+      "subtitle": "Dependencies are shown relative to the selected service.",
+      "incomingLabel": "Used by",
+      "incomingDescription": "how many other services use the selected service",
+      "outgoingLabel": "Uses",
+      "outgoingDescription": "how many other services the selected service uses",
+      "problems_one": "{{count}} problem",
+      "problems_other": "{{count}} problems",
+      "open": "Explain dependencies",
+      "incomingHeading": "Used by ({{count}})",
+      "outgoingHeading": "Uses ({{count}})",
+      "none": "No dependencies",
+      "deletedReference": "Linked to a deleted service",
+      "loading": "Loading dependencies...",
+      "loadFailed": "Failed to load dependencies",
+      "expand": "Show dependencies",
+      "collapse": "Hide dependencies",
+      "problemTitle": "Dependency problem",
+      "problemDescription_one": "{{count}} dependency on a deleted service",
+      "problemDescription_other": "{{count}} dependencies on deleted services"
+    },
+    "index": {
+      "reindex": "Reindex",
+      "reindexOnlyActive": "Only active services can be reindexed",
+      "status": {
+        "SUCCESS": "Indexed",
+        "FAILED": "Indexing failed",
+        "IN_PROGRESS": "Indexing in progress",
+        "NONE": "Not indexed"
+      },
+      "toast": {
+        "started": "Reindex started",
+        "failed": "Reindex failed",
+        "indexFailed": "Indexing failed: {{name}}"
+      },
+      "failureReason": "Last indexing failed: {{reason}}",
+      "failureUnknown": "Last indexing failed",
+      "validation": {
+        "VALIDATION_NAME_MISSING": "Indexing needs a service name.",
+        "VALIDATION_DESCRIPTION_MISSING": "Indexing needs a service description.",
+        "VALIDATION_SERVICE_NOT_ACTIVE": "Only active services can be indexed.",
+        "VALIDATION_SERVICE_NOT_DISCOVERABLE": "Only discoverable services can be indexed."
+      }
+    },
+    "pin": {
+      "pin": "Pin",
+      "pinned": "Pinned"
+    },
+    "copiedToClipboard": "Copied to clipboard",
+    "filters": {
+      "searchLabel": "Search services",
+      "searchPlaceholder": "Search services...",
+      "dependenciesLabel": "Dependencies",
+      "statusLabel": "Status",
+      "clear": "Clear filters",
+      "filtersCleared": "Filters were cleared to show the service",
+      "serviceNotFound": "Service not found",
+      "dependencies": {
+        "all": "All dependencies",
+        "yes": "With dependencies",
+        "no": "Without dependencies",
+        "problematic": "Problematic"
+      },
+      "status": {
+        "all": "All statuses"
+      }
+    },
+    "pagination": {
+      "range": "Showing {{from}}–{{to}} of {{total}} services",
+      "pageSize": "Show",
+      "previous": "Previous page",
+      "next": "Next page",
+      "page": "Page {{page}}"
     }
   },
   "connectionRequests": {
@@ -237,7 +357,6 @@
   "newService": {
     "endpoints": "Endpoints",
     "test": "Test URL",
-    "isCommon": "Common Service",
     "slot": "Slot",
     "serviceName": {
       "title": "Name",
@@ -258,6 +377,10 @@
       "title": "Keywords",
       "placeholder": "Add essential service keywords (e.g. ‘holiday’, ‘year’)",
       "tooltip": "Enter key terms used by AI to recognize intent. Keywords should reflect input concepts (e.g. ‘holiday’, ‘year’)."
+    },
+    "discoverable": {
+      "title": "Discoverable by AI",
+      "tooltip": "When enabled, Bürokratt can identify and start this service based on the user's request. The service must be Active. When disabled, it can still be started through another service."
     },
     "endpoint": {
       "add": "+ Add API endpoint",
@@ -324,6 +447,8 @@
       "unconnectedServiceBlocks": "Connect all service blocks.",
       "unfinishedFlows": "Complete all unfinished flows.",
       "unresolvedJumpToService": "Resolve all Next Service references.",
+      "unresolvedEndpointReferences": "Fix references to deleted API calls in: {{nodes}}.",
+      "unresolvedEndpointReference": "This step references a deleted API call.",
       "savedSuccessfully": "Saved Successfully",
       "success": "Success",
       "failed": "Failed",
@@ -343,7 +468,8 @@
       "saveAndContinue": "Save and continue"
     },
     "titleRequired": "Title is mandatory",
-    "chooseMemorySlots": "Choose memory slots"
+    "chooseMemorySlots": "Choose memory slots",
+    "unsavedChangesIndicator": "Unsaved changes"
   },
   "serviceFlow": {
     "serviceConfiguration": "Settings",
@@ -353,7 +479,7 @@
       "clientInput": "Client input",
       "assign": "Assign",
       "condition": "Condition",
-      "multiChoiceQuestion": "Multi-choice question",
+      "multiChoiceQuestion": "Multiple-choice question",
       "openNewWebpage": "Open new webpage",
       "fileGeneration": "File generation",
       "fileSigning": "File signing",
@@ -375,7 +501,7 @@
       },
       "jumpToService": {
         "title": "Next service",
-        "targetService": "Target service",
+        "targetService": "Next service",
         "selectService": "Select a service...",
         "noActiveServices": "No active services available",
         "parameters": "Parameters",
@@ -430,13 +556,13 @@
     },
     "mcq": {
       "selectBranchTitle": "Select branch",
-      "emptyBranchesMessage": "This multi-choice question has {{count}} empty branches. Which branch do you want to connect?"
+      "emptyBranchesMessage": "This multiple-choice question has {{count}} empty branches. Which branch do you want to connect?"
     },
     "condition": {
       "emptyPathsMessage": "This conditional node has {{count}} empty paths. Which path do you want to connect?"
     },
     "previousVariables": {
-      "assignElements": "Assigned Variables",
+      "assignElements": "Assigned values",
       "dateAndTime": {
         "title": "Date and time",
         "base": "Base",
@@ -465,10 +591,10 @@
       },
       "noName": "<No name>",
       "environmentVariables": {
-        "title": "Environment Variables"
+        "title": "Environment variables"
       },
       "apiResponses": {
-        "title": "API Responses"
+        "title": "API responses"
       },
       "helpers": {
         "title": "Tools",
@@ -608,6 +734,13 @@
       "message": "Error message"
     },
     "service-test-success": "Service test successful",
+    "next-service-test-error": {
+      "unavailable": "Next Service target is not available for testing. Only Active, Ready and Draft services can be tested.",
+      "missing": "Next Service target is missing. Select a service in the Next Service step.",
+      "serviceName": "Target service",
+      "state": "Status",
+      "notFound": "Not found"
+    },
     "title": "TEST",
     "input-placeholder": "Enter input, separated by commas",
     "service-input": "Service input",
@@ -763,6 +896,15 @@
     "testSuccess": "Test successful",
     "testError": "Test failed",
     "reIndexSuccess": "Re-index started",
-    "reIndexError": "Re-index failed"
+    "reIndexError": "Re-index failed",
+    "indexFailed": "Indexing failed: {{name}}",
+    "indexFailureReason": "Last indexing failed: {{reason}}",
+    "indexFailureUnknown": "Last indexing failed",
+    "indexValidation": {
+      "VALIDATION_NAME_MISSING": "Indexing needs an endpoint name.",
+      "VALIDATION_DESCRIPTION_MISSING": "Indexing needs an API description.",
+      "VALIDATION_URL_MISSING": "Indexing needs a selected endpoint URL.",
+      "VALIDATION_METHOD_MISSING": "Indexing needs a selected HTTP method."
+    }
   }
 }

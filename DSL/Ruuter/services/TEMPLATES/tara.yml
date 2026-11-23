@@ -32,7 +32,7 @@ get_cookie_info:
 
 check_cookie_info_response:
   switch:
-    - condition: ${200 <= res.response.statusCodeValue && res.response.statusCodeValue < 300}
+    - condition: ${200 <= res.response.statusCodeValue && res.response.statusCodeValue < 300 && res.response.body != null}
       next: return_auth_result
   next: return_bad_request
 

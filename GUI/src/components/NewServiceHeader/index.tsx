@@ -11,6 +11,7 @@ import { ROUTES } from 'resources/routes-constants';
 import useServiceStore from 'store/new-services.store';
 import useToastStore from 'store/toasts.store';
 import { ServiceState } from 'types';
+import { AffectedService } from 'utils/service-draft-return';
 import { navigateToService } from 'utils/service-navigation-utils';
 import { removeTrailingUnderscores } from 'utils/string-util';
 
@@ -19,11 +20,13 @@ import api from '../../services/api-dev';
 import useServiceListStore from '../../store/services.store';
 import Dialog from '../Dialog';
 import Icon from '../Icon';
+import ReturnToDraftModal from '../ReturnToDraftModal';
 import SettingsModal from '../ServiceConfigurationForm';
+import ServiceStatusChip from '../ServicesTable/ServiceStatusChip';
 
 import './NewServiceHeader.scss';
 
-type ServiceOption = { readonly name: string; readonly serviceId: string };
+type ServiceOption = { readonly name: string; readonly serviceId: string; readonly state?: ServiceState };
 
 type NewServiceHeaderProps = {
   activeStep: number;
@@ -42,6 +45,7 @@ const showEmptyNameError = () => {
 const NewServiceHeader: FC<NewServiceHeaderProps> = ({ backOnClick, continueOnClick, saveOnClick }) => {
   const name = removeTrailingUnderscores(useServiceStore((state) => state.serviceNameDashed()));
   const serviceState = useServiceStore((state) => state.serviceState);
+  const hasUnsavedChanges = useServiceStore((state) => state.hasUnsavedChanges);
   const selectedService = useServiceListStore((state) => state.selectedService);
   const [showServiceConfig, setShowServiceConfig] = useState<boolean>(false);
   const navigate = useNavigate();
@@ -51,6 +55,7 @@ const NewServiceHeader: FC<NewServiceHeaderProps> = ({ backOnClick, continueOnCl
   const [isDeleteServiceModalVisible, setIsDeleteServiceModalVisible] = useState(false);
   const [isServiceDropdownOpen, setIsServiceDropdownOpen] = useState(false);
   const [services, setServices] = useState<ServiceOption[]>([]);
+  const [affectedServices, setAffectedServices] = useState<AffectedService[] | null>(null);
   const { id } = useParams();
 
   useEffect(() => {
@@ -59,13 +64,56 @@ const NewServiceHeader: FC<NewServiceHeaderProps> = ({ backOnClick, continueOnCl
     api
       .get(getNavigableServicesList())
       .then((res) => {
-        const data: { serviceId: string; name: string }[] = Array.isArray(res.data) ? res.data : [];
-        setServices(data.map((s) => ({ name: s.name, serviceId: s.serviceId })));
+        const data: ServiceOption[] = Array.isArray(res.data) ? res.data : [];
+        setServices(data.map((s) => ({ name: s.name, serviceId: s.serviceId, state: s.state })));
       })
       .catch(console.error);
   }, [isServiceDropdownOpen]);
 
   const otherServices = services.filter((service) => service.serviceId !== id);
+  const hasPendingChanges = !id || hasUnsavedChanges;
+
+  const saveAsDraft = async () => {
+    setIsSaving(true);
+    try {
+      await useServiceStore.getState().onServiceSave(ServiceState.Draft, false);
+      useServiceStore.setState({ serviceState: ServiceState.Draft });
+      saveOnClick();
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!name) {
+      showEmptyNameError();
+      return;
+    }
+    if (serviceState !== ServiceState.Active || !id) {
+      await saveAsDraft();
+      return;
+    }
+
+    setIsSaving(true);
+    let affected: AffectedService[];
+    try {
+      affected = await useServiceListStore.getState().loadAffectedActiveServices(id);
+    } catch (error) {
+      console.error(error);
+      useToastStore.getState().error({ title: t('overview.service.toast.failed.state') });
+      setIsSaving(false);
+      return;
+    }
+
+    if (affected.length > 0) {
+      setIsSaving(false);
+      setAffectedServices(affected);
+      return;
+    }
+    await saveAsDraft();
+  };
 
   return (
     <>
@@ -92,6 +140,7 @@ const NewServiceHeader: FC<NewServiceHeaderProps> = ({ backOnClick, continueOnCl
             <DropdownMenu.Trigger asChild>
               <button type="button" className="naming naming--trigger">
                 <span className="naming__label">{name || '...'}</span>
+                {serviceState && <ServiceStatusChip state={serviceState} variant="outlined" />}
                 {isServiceDropdownOpen ? (
                   <CgChevronUp className="naming__chevron" size={25} />
                 ) : (
@@ -112,7 +161,8 @@ const NewServiceHeader: FC<NewServiceHeaderProps> = ({ backOnClick, continueOnCl
                       className="service-switch-dropdown__item"
                       onSelect={() => navigateToService(service.serviceId, navigate)}
                     >
-                      {service.name}
+                      <span className="service-switch-dropdown__name">{service.name}</span>
+                      {service.state && <ServiceStatusChip state={service.state} variant="outlined" />}
                     </DropdownMenu.Item>
                   ))
                 )}
@@ -130,25 +180,16 @@ const NewServiceHeader: FC<NewServiceHeaderProps> = ({ backOnClick, continueOnCl
           >
             {t('serviceFlow.apiElements.delete')}
           </Button>
-          <Button
-            appearance={isSaving ? 'loading' : 'primary'}
-            onClick={async () => {
-              if (!name) {
-                showEmptyNameError();
-              } else {
-                setIsSaving(true);
-                try {
-                  await useServiceStore.getState().onServiceSave(ServiceState.Draft, false);
-                  saveOnClick();
-                } catch (error) {
-                  console.error(error);
-                } finally {
-                  setIsSaving(false);
-                }
-              }
-            }}
-          >
+          <Button appearance={isSaving ? 'loading' : 'primary'} disabled={isSaving} onClick={() => void handleSave()}>
             {t('global.save')}
+            {hasPendingChanges && (
+              <span
+                className="unsaved-changes-dot"
+                role="img"
+                aria-label={t('newService.unsavedChangesIndicator')}
+                title={t('newService.unsavedChangesIndicator')}
+              />
+            )}
           </Button>
           <Button
             appearance={isContinuing ? 'loading' : 'primary'}
@@ -176,6 +217,20 @@ const NewServiceHeader: FC<NewServiceHeaderProps> = ({ backOnClick, continueOnCl
           </Button>
         </Track>
       </header>
+      {affectedServices && (
+        <ReturnToDraftModal
+          affectedServices={affectedServices}
+          onCancel={() => setAffectedServices(null)}
+          onConfirm={() => {
+            setAffectedServices(null);
+            void saveAsDraft();
+          }}
+          onOpenService={(serviceId) => {
+            setAffectedServices(null);
+            navigateToService(serviceId, navigate);
+          }}
+        />
+      )}
       {isDeleteServiceModalVisible && (
         <Modal title={t('overview.popup.delete')} onClose={() => setIsDeleteServiceModalVisible(false)}>
           <Track justify="end" gap={16}>

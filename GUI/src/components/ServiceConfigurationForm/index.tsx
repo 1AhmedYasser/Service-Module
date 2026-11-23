@@ -15,9 +15,9 @@ const SettingsModal: FC<SettingsModalProps> = () => {
 
   const name = useServiceStore((state) => state.serviceNameDashed());
   const description = useServiceStore((state) => state.description);
-  const isCommon = useServiceStore((state) => state.isCommon);
   const examples = useServiceStore((state) => state.examples);
   const entities = useServiceStore((state) => state.entities);
+  const discoverable = useServiceStore((state) => state.discoverable);
 
   const { setHasUnsavedChanges } = useServiceStore();
   const titleRef = useRef<HTMLInputElement>(null);
@@ -86,25 +86,18 @@ const SettingsModal: FC<SettingsModalProps> = () => {
                 placeholder={'newService.keywords.placeholder'}
               />
             </Track>
+            <Switch
+              label={t('newService.discoverable.title') + ' :'}
+              checked={discoverable}
+              onCheckedChange={(checked) => {
+                setHasUnsavedChanges(true);
+                useServiceStore.getState().setDiscoverable(checked);
+              }}
+              tooltip={<InfoTooltip name={'newService.discoverable.tooltip'} />}
+            />
           </Track>
         </Card>
       </div>
-      <Track style={{ width: '100%', marginTop: '16px' }} justify={'between'} direction={'horizontal'} gap={10}>
-        <Track>
-          <Switch
-            name="isCommon"
-            label={t('newService.isCommon')}
-            onLabel={t('global.yes').toString()}
-            offLabel={t('global.no').toString()}
-            value={isCommon}
-            checked={isCommon}
-            onCheckedChange={(e) => {
-              setHasUnsavedChanges(true);
-              useServiceStore.getState().setIsCommon(e);
-            }}
-          />
-        </Track>
-      </Track>
     </>
   );
 };

@@ -91,4 +91,40 @@ describe('validateFlowCompleteness', () => {
     expect(result.isComplete).toBe(true);
     expect(result.unresolvedJumpToServiceNodeIds.size).toBe(0);
   });
+
+  it('flags a node referencing the result of a deleted API call', () => {
+    const nodes = [
+      startNode,
+      stepNode('assign-1', {
+        stepType: StepType.Assign,
+        assignElements: [{ id: 'a1', key: 'x', value: '${Deleted_API_res.response.body.value}' }],
+      }),
+    ];
+    const edges: Edge[] = [{ id: 'e1', source: 'start-1', target: 'assign-1' }];
+
+    const result = validateFlowCompleteness(nodes, edges, new Map());
+
+    expect(result.isComplete).toBe(false);
+    expect(result.unresolvedEndpointReferenceNodeIds.has('assign-1')).toBe(true);
+  });
+
+  it('does not flag a node referencing the result of an existing API call', () => {
+    const nodes = [
+      startNode,
+      stepNode('api-1', { stepType: StepType.UserDefined, endpoint: { name: 'My API', definitions: [] } }),
+      stepNode('assign-1', {
+        stepType: StepType.Assign,
+        assignElements: [{ id: 'a1', key: 'x', value: '${My_API_res.response.statusCodeValue}' }],
+      }),
+    ];
+    const edges: Edge[] = [
+      { id: 'e1', source: 'start-1', target: 'api-1' },
+      { id: 'e2', source: 'api-1', target: 'assign-1' },
+    ];
+
+    const result = validateFlowCompleteness(nodes, edges, new Map());
+
+    expect(result.isComplete).toBe(true);
+    expect(result.unresolvedEndpointReferenceNodeIds.size).toBe(0);
+  });
 });

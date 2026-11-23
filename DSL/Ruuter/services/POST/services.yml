@@ -17,9 +17,6 @@ declaration:
       - field: sorting
         type: string
         description: "Body field 'sorting'"
-      - field: is_common
-        type: boolean
-        description: "Body field 'is_common'"
       - field: search
         type: string
         description: "Body field 'search'"
@@ -32,8 +29,10 @@ get_services_list:
       page: ${incoming.body.page}
       page_size: ${incoming.body.page_size}
       sorting: ${incoming.body.sorting}
-      is_common: ${incoming.body.is_common}
       search: ${incoming.body.search}
+      state: ""
+      dependencies: ""
+      exclude_pinned_for: ""
   limit: 600
   result: services_res
 

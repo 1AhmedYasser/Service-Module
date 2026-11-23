@@ -92,7 +92,6 @@ export const importServices = async (event: ChangeEvent<HTMLInputElement>) => {
         });
         const store = useServiceListStore.getState();
         await store.loadServicesList(store.servicesPagination, store.servicesSorting);
-        await store.loadCommonServicesList(store.commonServicesPagination, store.commonServicesSorting);
       })
       .catch((error) => {
         console.error('Error importing services:', error);

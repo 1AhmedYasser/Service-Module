@@ -14,15 +14,15 @@ declaration:
       - field: description
         type: string
         description: "Body field 'description'"
-      - field: isCommon
-        type: boolean
-        description: "Body field 'isCommon'"  
       - field: entities
         type: object
         description: "Body field 'Entities'"
       - field: examples
         type: object
         description: "Body field 'Examples'"
+      - field: discoverable
+        type: boolean
+        description: "Body field 'discoverable'"
       - field: name
         type: string
         description: "Body field 'name'"
@@ -52,10 +52,10 @@ extract_request_data:
     id: ${incoming.params.id}
     name: ${incoming.body.name}
     description: ${incoming.body.description}
-    isCommon: ${incoming.body.isCommon}
     slot: ${""}
     entities: ${incoming.body.entities}
     examples: ${incoming.body.examples}
+    discoverable: ${incoming.body.discoverable}
     type: ${incoming.body.type}
     content: ${incoming.body.content}
     structure: ${incoming.body.structure}
@@ -183,6 +183,7 @@ assign_values:
     old_ext: "${old_service_result.response.body[0].state === 'active' ? 'yml' : 'tmp'}"
     new_state_dir: "${(state ?? old_service_result.response.body[0].state) === 'active' ? 'active' : 'draft'}"
     new_ext: "${(state ?? old_service_result.response.body[0].state) === 'active' ? 'yml' : 'tmp'}"
+    is_discoverable: ${(discoverable ?? old_service_result.response.body[0].discoverable) === true}
 
 check_new_structure:
   switch:
@@ -233,10 +234,10 @@ service_edit:
       id: ${id}
       name: ${name}
       description: ${description}
-      is_common: ${isCommon ?? false}
       slot: ${slot}
       examples: ${examples}
       entities: ${entities}
+      discoverable: ${discoverable}
       structure: ${new_structure}
       state: ${state ?? 'draft'}
   result: editedService
@@ -245,6 +246,8 @@ check for_state:
   switch:
     - condition: ${state === 'draft'}
       next: check_remove_blob_then_draft
+    - condition: ${state === 'active' && !is_discoverable}
+      next: check_remove_blob_then_ok
     - condition: ${state === 'active'}
       next: check_if_service_data_exists
   next: check_remove_blob_then_ok
@@ -277,25 +280,20 @@ delete_from_storage_edit:
           container: "[#STORAGE_FERRY_CONTAINER]"
           fileName: "${old_storage_file_name}.json"
   result: ferry_delete_result
-  next: check_if_azure_configured_after_delete_edit
+  error: check_delete_from_storage_edit
+  next: check_delete_from_storage_edit
 
-check_if_azure_configured_after_delete_edit:
+check_delete_from_storage_edit:
   switch:
-    - condition: ${"[#AZURE_SEARCH_SERVICE_NAME]" !== "" && "[#AZURE_SEARCH_INDEXER_NAME]" !== "" && "[#AZURE_SEARCH_API_KEY]" !== ""}
+    - condition: ${200 <= ferry_delete_result.response.statusCodeValue && ferry_delete_result.response.statusCodeValue < 300}
       next: trigger_azure_indexer_after_delete_edit
-  next: log_azure_not_configured_after_delete_edit
-
-log_azure_not_configured_after_delete_edit:
-  log: "Warning! Azure Search configuration not found. Skipping Azure indexer trigger. Please configure AZURE_SEARCH_SERVICE_NAME, AZURE_SEARCH_INDEXER_NAME, and AZURE_SEARCH_API_KEY in constants.ini"
-  next: after_delete_from_storage_edit
+    - condition: ${ferry_delete_result.response.statusCodeValue === 404}
+      next: after_delete_from_storage_edit
+  next: return_storage_delete_failed
 
 trigger_azure_indexer_after_delete_edit:
-  call: http.post
-  args:
-    url: "https://[#AZURE_SEARCH_SERVICE_NAME].search.windows.net/indexers/[#AZURE_SEARCH_INDEXER_NAME]/run?api-version=2024-07-01"
-    headers:
-      api-key: "[#AZURE_SEARCH_API_KEY]"
-      Content-Type: "application/json"
+  template: "[#SERVICE_PROJECT_LAYER]/trigger-azure-indexer"
+  requestType: templates
   result: azure_indexer_result
   next: after_delete_from_storage_edit
 
@@ -369,25 +367,11 @@ replace_in_storage:
           fileName: "${new_storage_file_name}.json"
       content: ${JSON.stringify(service_json_result.response.body)}
   result: ferry_upload_result
-  next: check_if_azure_configured
-
-check_if_azure_configured:
-  switch:
-    - condition: ${"[#AZURE_SEARCH_SERVICE_NAME]" !== "" && "[#AZURE_SEARCH_INDEXER_NAME]" !== "" && "[#AZURE_SEARCH_API_KEY]" !== ""}
-      next: trigger_azure_indexer
-  next: log_azure_not_configured
-
-log_azure_not_configured:
-  log: "Warning! Azure Search configuration not found. Skipping Azure indexer trigger. Please configure AZURE_SEARCH_SERVICE_NAME, AZURE_SEARCH_INDEXER_NAME, and AZURE_SEARCH_API_KEY in constants.ini"
-  next: return_ok
+  next: trigger_azure_indexer
 
 trigger_azure_indexer:
-  call: http.post
-  args:
-    url: "https://[#AZURE_SEARCH_SERVICE_NAME].search.windows.net/indexers/[#AZURE_SEARCH_INDEXER_NAME]/run?api-version=2024-07-01"
-    headers:
-      api-key: "[#AZURE_SEARCH_API_KEY]"
-      Content-Type: "application/json"
+  template: "[#SERVICE_PROJECT_LAYER]/trigger-azure-indexer"
+  requestType: templates
   result: azure_indexer_result
   next: return_ok
 
@@ -405,4 +389,9 @@ return_incorrect_request:
 return_name_already_exists:
   status: 409
   return: "Service name already exists"
+  next: end
+
+return_storage_delete_failed:
+  status: 500
+  return: "Failed to delete service from storage"
   next: end

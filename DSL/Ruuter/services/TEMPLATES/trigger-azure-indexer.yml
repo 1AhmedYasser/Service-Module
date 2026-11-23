@@ -1,0 +1,60 @@
+declaration:
+  call: declare
+  version: 0.1
+  description: "Triggers the Azure Search indexer run. The Azure Search API key is read from Vault (secret 'azure-search', field 'api_key') - it is never read from constants.ini or the filesystem."
+  method: post
+  accepts: json
+  returns: json
+  namespace: service
+
+check_if_azure_configured:
+  switch:
+    - condition: ${"[#AZURE_SEARCH_SERVICE_NAME]" !== "" && "[#AZURE_SEARCH_INDEXER_NAME]" !== ""}
+      next: get_azure_search_secret
+  next: log_azure_not_configured
+
+log_azure_not_configured:
+  log: "Warning! Azure Search configuration not found. Skipping Azure indexer trigger. Please configure AZURE_SEARCH_SERVICE_NAME and AZURE_SEARCH_INDEXER_NAME in constants.ini"
+  next: return_skipped
+
+get_azure_search_secret:
+  template: "[#SERVICE_PROJECT_LAYER]/vault-secret"
+  requestType: templates
+  body:
+    name: "azure-search"
+  result: azure_search_secret
+  next: check_azure_search_secret
+
+check_azure_search_secret:
+  switch:
+    - condition: ${azure_search_secret.status === 'ok' && azure_search_secret.data.api_key != null && azure_search_secret.data.api_key !== ''}
+      next: trigger_azure_indexer
+    - condition: ${azure_search_secret.status === 'ok'}
+      next: log_azure_api_key_missing
+  next: log_azure_secret_unavailable
+
+log_azure_api_key_missing:
+  log: "Error! Vault secret '[#SERVICE_VAULT_SECRETS_PATH]/azure-search' has no 'api_key' field. Skipping Azure indexer trigger."
+  next: return_skipped
+
+log_azure_secret_unavailable:
+  log: "Error! Azure Search API key could not be read from Vault (${azure_search_secret.status}). Skipping Azure indexer trigger."
+  next: return_skipped
+
+trigger_azure_indexer:
+  call: http.post
+  args:
+    url: "https://[#AZURE_SEARCH_SERVICE_NAME].search.windows.net/indexers/[#AZURE_SEARCH_INDEXER_NAME]/run?api-version=2024-07-01"
+    headers:
+      api-key: ${azure_search_secret.data.api_key}
+      Content-Type: "application/json"
+  result: azure_indexer_result
+  next: return_triggered
+
+return_triggered:
+  return: "triggered"
+  next: end
+
+return_skipped:
+  return: "skipped"
+  next: end

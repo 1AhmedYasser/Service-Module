@@ -1,12 +1,11 @@
 import { Node } from '@xyflow/react';
 import Button from 'components/Button';
 import { FormSelect } from 'components/FormElements';
-import { FC, useEffect, useState } from 'react';
+import { FC, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MdOpenInNew } from 'react-icons/md';
 import { useNavigate } from 'react-router-dom';
-import { getNavigableServicesList } from 'resources/api-constants';
-import api from 'services/api-dev';
+import useServiceStore from 'store/new-services.store';
 import { Assign } from 'types/assign';
 import { JumpToService } from 'types/jump-to-service';
 import { NodeDataProps } from 'types/service-flow';
@@ -28,19 +27,20 @@ type JumpToServiceContentProps = {
 const JumpToServiceContent: FC<JumpToServiceContentProps> = ({ node, jumpToService, onChange }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [services, setServices] = useState<ServiceOption[]>([]);
+  const navigableServices = useServiceStore((state) => state.navigableServices);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    api
-      .get(getNavigableServicesList())
-      .then((res) => {
-        const data: { serviceId: string; name: string }[] = Array.isArray(res.data) ? res.data : [];
-        setServices(data.map((s) => ({ name: s.name, serviceId: s.serviceId })));
-      })
-      .catch(console.error)
+    void useServiceStore
+      .getState()
+      .loadNavigableServiceIds()
       .finally(() => setIsLoading(false));
   }, []);
+
+  const services: ServiceOption[] = useMemo(
+    () => Array.from(navigableServices, ([serviceId, name]) => ({ name, serviceId })),
+    [navigableServices],
+  );
 
   const serviceOptions = services.map((s) => ({ label: s.name, value: { name: s.name, serviceId: s.serviceId } }));
 

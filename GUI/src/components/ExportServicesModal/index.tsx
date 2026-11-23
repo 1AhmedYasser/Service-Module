@@ -44,7 +44,6 @@ const ExportServicesModal: FC<ExportServicesModalProps> = ({ isVisible, onClose 
           page_size: paginationState.pageSize,
           sorting: sort,
           search: search ?? '',
-          is_common: '',
         });
         const servicesData = response.data.response[0] ?? [];
         const fetchedServices: Service[] = servicesData.map((item: Service) => ({

@@ -85,12 +85,11 @@ const PreviousVariables: FC<PreviousVariablesProps> = ({ node }) => {
 
     // Get Endpoints variables
     const endpointNodes = previousNodes.filter((node) => node.data.stepType === StepType.UserDefined);
-    const names = endpointNodes.map((node) => node.data.label?.toString().split(' ')[0]);
-    const filteredEndpointsVariables = endpointsVariables.filter((endpoint) => names.includes(endpoint.name));
-    const uniqueEndpointsVariables = Array.from(
-      new Map(filteredEndpointsVariables.map((endpoint) => [endpoint.name, endpoint])).values(),
-    );
-    setEndpoints(uniqueEndpointsVariables);
+    const previousEndpointsVariables = endpointNodes.flatMap((endpointNode) => {
+      const variable = endpointsVariables.find((endpoint) => endpoint.nodeId === endpointNode.id);
+      return variable ? [{ ...variable, name: endpointNode.data.label?.toString() ?? variable.name }] : [];
+    });
+    setEndpoints(previousEndpointsVariables);
 
     // Get Assign variables
     const assignNodes: Node<NodeDataProps>[] =
@@ -210,7 +209,7 @@ const PreviousVariables: FC<PreviousVariablesProps> = ({ node }) => {
             >
               {endpoints.map((endpoint) => (
                 <Track
-                  key={endpoint.name}
+                  key={endpoint.nodeId}
                   direction="vertical"
                   align="left"
                   style={{ ...popupBodyCss, borderBottom: border }}
@@ -424,7 +423,7 @@ const VariableSection = ({
         borderBottom: assignedObjectTree ? undefined : border,
       }}
     >
-      <label htmlFor="json" style={{ marginBottom: '10px', textTransform: 'capitalize', cursor: 'auto' }}>
+      <label htmlFor="json" style={{ marginBottom: '10px', cursor: 'auto' }}>
         {title}
       </label>
       <Track direction="horizontal" gap={4} justify="start" isMultiline style={{ maxHeight: '30vh', overflow: 'auto' }}>

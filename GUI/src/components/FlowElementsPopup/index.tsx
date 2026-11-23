@@ -12,14 +12,9 @@ import { EndpointData } from 'types/endpoint';
 import { JumpToService } from 'types/jump-to-service';
 import { MultiChoiceQuestionButton } from 'types/multi-choice-question';
 import { NodeDataProps } from 'types/service-flow';
+import { getMcqNodeId, isStepNameTaken } from 'utils/flow-utils';
 import { getValueByPath } from 'utils/object-util';
-import {
-  getLastDigits,
-  isTemplate,
-  removeTrailingUnderscores,
-  stringToTemplate,
-  templateToString,
-} from 'utils/string-util';
+import { isTemplate, removeTrailingUnderscores, stringToTemplate, templateToString } from 'utils/string-util';
 
 import { Button, Track } from '..';
 import Popup from '../Popup';
@@ -66,7 +61,7 @@ const FlowElementsPopup: React.FC = () => {
   }, [node?.data?.endpoint, storeEndpoints]);
   const stepType = node?.data.stepType;
 
-  const mcqNodeNumber = useMemo(() => String(getLastDigits(node?.data.label ?? '')), [node?.data.label]);
+  const mcqNodeNumber = useMemo(() => String(node ? getMcqNodeId(node.data) : 1), [node]);
 
   const defaultMultiChoiceQuestionButtons = useMemo(
     () => [
@@ -206,6 +201,7 @@ const FlowElementsPopup: React.FC = () => {
         fileName: fileName ?? node.data?.fileName,
         fileContent: fileContent ?? node.data?.fileContent,
         signOption: signOption ?? node.data?.signOption,
+        mcqNodeId: node.data.stepType === StepType.MultiChoiceQuestion ? getMcqNodeId(node.data) : undefined,
         multiChoiceQuestion:
           node.data.stepType === StepType.MultiChoiceQuestion
             ? {
@@ -291,7 +287,7 @@ const FlowElementsPopup: React.FC = () => {
       }
       updatedNode.data.label = newLabel.join(' ');
     }
-    useServiceStore.getState().loadEndpointsResponseVariables();
+    setTimeout(() => useServiceStore.getState().loadEndpointsResponseVariables(), 0);
   };
 
   const filterOutEndpointsTrailingUnderscores = (updatedNode: Node<NodeDataProps>) => {
@@ -442,14 +438,11 @@ const FlowElementsPopup: React.FC = () => {
       }
       titleEditable
       onTitleChange={(newTitle) => {
-        const nodeWithSameLabel = instance?.getNodes().find((n) => n.data.label === newTitle && n.id !== node.id);
-        setTitleError(nodeWithSameLabel ? t('newService.toast.elementNameAlreadyExists').toString() : undefined);
+        const isTaken = isStepNameTaken(newTitle, instance?.getNodes() ?? [], node.id);
+        setTitleError(isTaken ? t('newService.toast.elementNameAlreadyExists').toString() : undefined);
       }}
       onTitleSave={setTitle}
-      onTitleEditCancel={() => {
-        setTitleError(undefined);
-        setTitle(node.data.label ?? '');
-      }}
+      onTitleEditCancel={() => setTitleError(undefined)}
       titleError={titleError}
     >
       <Track direction="vertical" align="stretch" gap={16} className="flow-body-reverse-margin">

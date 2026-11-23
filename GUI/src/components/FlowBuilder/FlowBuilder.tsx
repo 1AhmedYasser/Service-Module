@@ -34,7 +34,6 @@ type FlowBuilderProps = {
 };
 
 const FlowBuilder: FC<FlowBuilderProps> = ({ nodes, edges }) => {
-  useLayout();
   const { getNodes, getEdges, setNodes, setEdges } = useReactFlow();
   const setReactFlowInstance = useNewServiceStore((state) => state.setReactFlowInstance);
   const [colorMode, setColorMode] = useState<ColorMode>('light');
@@ -57,12 +56,11 @@ const FlowBuilder: FC<FlowBuilderProps> = ({ nodes, edges }) => {
   const { saveToHistory, historyIndex, setFlowSelectedNodes, setHasUnsavedChanges } = useNewServiceStore();
   const orientation = useServiceStore((state) => state.orientation);
   const toggleOrientation = useServiceStore((state) => state.toggleOrientation);
-  useLayout(orientation);
+  const { runLayout } = useLayout(orientation);
   const autoView = useServiceStore((state) => state.autoView);
   const toggleAutoView = useServiceStore((state) => state.toggleAutoView);
   const { fitView } = useReactFlow();
 
-  const { runLayout } = useLayout();
   const { pendingConnection, handleConnect, isValidConnection, confirmBranch, cancelBranchSelection } = useMcqConnect();
   const { displayNodes, displayEdges, handleNodeClick, handlePaneClick } = useNodeHighlight(nodes, edges);
 

@@ -6,6 +6,11 @@ declaration:
   accepts: json
   returns: json
   namespace: service
+  allowlist:
+    header:
+      - field: cookie
+        type: string
+        description: "Cookie field"
 
 get_user_info:
   call: http.post
@@ -19,7 +24,7 @@ get_user_info:
 
 check_user_info_response:
   switch:
-    - condition: ${200 <= res.response.statusCodeValue && res.response.statusCodeValue < 300}
+    - condition: ${200 <= res.response.statusCodeValue && res.response.statusCodeValue < 300 && res.response.body != null}
       next: assignIdCode
   next: return_unauthorized
 

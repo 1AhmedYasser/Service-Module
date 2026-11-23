@@ -4,7 +4,7 @@ import React, { ButtonHTMLAttributes, forwardRef, PropsWithChildren } from 'reac
 import './Button.scss';
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  appearance?: 'primary' | 'secondary' | 'text' | 'icon' | 'error' | 'success' | 'loading';
+  appearance?: 'primary' | 'secondary' | 'outline' | 'text' | 'icon' | 'error' | 'success' | 'loading';
   size?: 'm' | 's';
   className?: string;
 };

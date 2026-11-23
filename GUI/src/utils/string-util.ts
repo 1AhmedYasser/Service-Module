@@ -24,7 +24,14 @@ export const templateToString = (value: string | number) => {
 };
 
 export const toSnakeCase = (value: string) => {
-  return value.toLowerCase().trim().replaceAll(/\s+/g, '_').replaceAll(/-+/g, '_').replaceAll(/_+/g, '_');
+  return value
+    .normalize('NFD')
+    .replaceAll(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+    .replaceAll(/\s+/g, '_')
+    .replaceAll(/-+/g, '_')
+    .replaceAll(/_+/g, '_');
 };
 
 export const fromSnakeCase = (value: string) => {

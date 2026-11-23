@@ -1,61 +1,162 @@
 import { PaginationState, SortingState } from '@tanstack/react-table';
-import { Node } from '@xyflow/react';
+import { Edge, Node } from '@xyflow/react';
+import i18n from 'i18n';
 import {
   changeServiceStatus,
   deleteService as deleteServiceApi,
+  getNavigableServicesList,
   getServiceById,
-  getServicesList,
+  getServiceDependencies,
+  getServicesOverview,
+  locateService as locateServiceApi,
+  pinService as pinServiceApi,
+  reindexService as reindexServiceApi,
+  unpinService as unpinServiceApi,
 } from 'resources/api-constants';
 import { Service, ServiceState } from 'types';
 import { ActivationBlocker } from 'types/activation-blocker';
+import { ServiceDependency, ServiceLocation } from 'types/service-dependency';
+import { FlowCompletenessResult, validateFlowCompleteness } from 'utils/flow-completeness';
 import { findActivationBlockers, ServiceFlowLookup } from 'utils/service-activation';
+import { AffectedService, findAffectedActiveServices } from 'utils/service-draft-return';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 import useToastStore from './toasts.store';
 import api from '../services/api-dev';
 
-const fetchServiceFlow = async (serviceId: string): Promise<ServiceFlowLookup | undefined> => {
+const fetchServiceFlow = async (serviceId: string): Promise<(ServiceFlowLookup & { edges: Edge[] }) | undefined> => {
   try {
     const response = await api.post<Service>(getServiceById(), { id: serviceId, search: '' });
     const data = response.data;
     if (!data?.serviceId) return undefined;
 
     const structure = JSON.parse(data.structure?.value ?? '{}');
-    return { name: data.name, state: data.state, nodes: (structure?.nodes ?? []) as Node[] };
+    return {
+      name: data.name,
+      state: data.state,
+      nodes: (structure?.nodes ?? []) as Node[],
+      edges: (structure?.edges ?? []) as Edge[],
+    };
   } catch (error) {
     console.error(error);
     return undefined;
   }
 };
 
+export interface ServiceStatusTarget {
+  readonly serviceId: string;
+  readonly state: ServiceState;
+  readonly type: 'GET' | 'POST' | null;
+}
+
+export interface ServicesFilters {
+  readonly search: string;
+  readonly state: string;
+  readonly dependencies: 'all' | 'yes' | 'no' | 'problematic';
+}
+
+export const DEFAULT_SERVICES_FILTERS: ServicesFilters = { search: '', state: '', dependencies: 'all' };
+
+export type ServicesLoadState = 'loading' | 'success' | 'error';
+
+let latestServicesRequestId = 0;
+
+const toSortingParam = (sorting: SortingState): string => {
+  if (sorting.length === 0) return '';
+  const order = sorting[0].desc ? 'desc' : 'asc';
+  return `${sorting[0].id} ${order}`;
+};
+
+/** Shows the toast for a service indexing validation error code returned by the backend (e.g. VALIDATION_DESCRIPTION_MISSING). */
+export const showServiceIndexValidationToast = (code: string): void => {
+  useToastStore.getState().error({
+    title: i18n.t(`overview.index.validation.${code}`, { defaultValue: i18n.t('overview.index.toast.failed') }),
+  });
+};
+
+// Attempts whose failure was already announced in this session, keyed by `${serviceId}:${attemptNo}`.
+// Ensures each new failure produces exactly one toast, and reloads never re-announce existing failures.
+const announcedIndexFailures = new Set<string>();
+
+// A failure is "new" when the row was seen before on this page and either was IN_PROGRESS,
+// or a newer attempt has failed already (e.g. submission failed during activation). Rows seen for the
+// first time (initial load, reload, other page) are never announced.
+const announceNewIndexFailures = (previous: Service[], next: Service[]): void => {
+  const previousById = new Map(previous.map((service) => [service.serviceId, service]));
+  for (const service of next) {
+    const before = previousById.get(service.serviceId);
+    if (service.indexStatus !== 'FAILED' || !before) continue;
+    const isNewAttempt = (service.indexAttemptNo ?? 0) > (before.indexAttemptNo ?? 0);
+    if (before.indexStatus !== 'IN_PROGRESS' && !isNewAttempt) continue;
+    const key = `${service.serviceId}:${service.indexAttemptNo ?? ''}`;
+    if (announcedIndexFailures.has(key)) continue;
+    announcedIndexFailures.add(key);
+    useToastStore.getState().error({
+      title: i18n.t('overview.index.toast.indexFailed', { name: service.name }),
+      message: service.indexFailureReason ?? undefined,
+    });
+  }
+};
+
+const mapService = (item: any, isPinned: boolean): Service => ({
+  id: item.id,
+  name: item.name,
+  description: item.description,
+  examples: item.examples ?? [],
+  entities: item.entities ?? [],
+  slot: item.slot,
+  state: item.state,
+  type: item.type,
+  serviceId: item.serviceId,
+  totalPages: item.totalPages ?? 1,
+  totalCount: item.totalCount ?? 0,
+  indexStatus: item.indexStatus ?? null,
+  indexFailureReason: item.indexFailureReason ?? null,
+  indexAttemptNo: item.indexAttemptNo ?? null,
+  incomingCount: item.incomingCount ?? 0,
+  outgoingCount: item.outgoingCount ?? 0,
+  problemCount: item.problemCount ?? 0,
+  isPinned,
+  endpoints: [],
+});
+
 interface ServiceStoreState {
   services: Service[];
-  commonServices: Service[];
-  notCommonServices: Service[];
+  pinnedServices: Service[];
+  servicesTotalCount: number;
+  servicesTotalPages: number;
   servicesPagination: PaginationState;
   servicesSorting: SortingState;
-  commonServicesPagination: PaginationState;
-  commonServicesSorting: SortingState;
+  servicesFilters: ServicesFilters;
+  servicesVersion: number;
+  servicesLoadState: ServicesLoadState;
+  isRefreshingServices: boolean;
   orientation: 'horizontal' | 'vertical';
   toggleOrientation: () => void;
   autoView: boolean;
   toggleAutoView: () => void;
-  loadServicesList: (pagination: PaginationState, sorting: SortingState) => Promise<void>;
-  loadCommonServicesList: (pagination: PaginationState, sorting: SortingState) => Promise<void>;
-  deleteService: (id: string) => void;
-  selectedService: Service | undefined;
-  setSelectedService: (service: Service) => void;
-  loadActivationBlockers: (service: Service) => Promise<ActivationBlocker[]>;
-  changeServiceState: (
-    onEnd: () => void,
-    successMessage: string,
-    errorMessage: string,
-    activate: boolean,
-    draft: boolean,
+  loadServicesList: (
     pagination: PaginationState,
     sorting: SortingState,
+    filters?: ServicesFilters,
+    options?: { keepOrder?: boolean; silent?: boolean },
   ) => Promise<void>;
+  togglePinService: (service: Service) => Promise<void>;
+  loadServiceDependencies: (serviceId: string) => Promise<ServiceDependency[]>;
+  locateService: (
+    serviceId: string,
+    pageSize: number,
+    sorting: SortingState,
+    filters: ServicesFilters,
+  ) => Promise<ServiceLocation | undefined>;
+  selectedService: Service | undefined;
+  setSelectedService: (service: Service) => void;
+  loadFlowCompleteness: (serviceId: string) => Promise<FlowCompletenessResult>;
+  loadActivationBlockers: (serviceId: string) => Promise<ActivationBlocker[]>;
+  loadAffectedActiveServices: (serviceId: string) => Promise<AffectedService[]>;
+  changeServiceState: (service: ServiceStatusTarget, state: ServiceState) => Promise<void>;
+  reindexService: (service: Service) => Promise<void>;
   deleteSelectedService: (
     onEnd: () => void,
     successMessage: string,
@@ -69,12 +170,15 @@ const useServiceListStore = create<ServiceStoreState>()(
   persist(
     (set, get) => ({
       services: [],
-      commonServices: [],
-      notCommonServices: [],
+      pinnedServices: [],
+      servicesTotalCount: 0,
+      servicesTotalPages: 1,
       servicesPagination: { pageIndex: 0, pageSize: 10 },
-      servicesSorting: [{ id: 'name', desc: false }],
-      commonServicesPagination: { pageIndex: 0, pageSize: 10 },
-      commonServicesSorting: [{ id: 'name', desc: false }],
+      servicesSorting: [],
+      servicesFilters: DEFAULT_SERVICES_FILTERS,
+      servicesVersion: 0,
+      servicesLoadState: 'loading',
+      isRefreshingServices: false,
       orientation: 'vertical',
       autoView: false,
       toggleAutoView: () =>
@@ -85,73 +189,111 @@ const useServiceListStore = create<ServiceStoreState>()(
         set((state) => ({
           orientation: state.orientation === 'horizontal' ? 'vertical' : 'horizontal',
         })),
-      loadServicesList: async (pagination, sorting) => {
-        const order = sorting[0]?.desc ? 'desc' : 'asc';
-        const sort = sorting.length === 0 ? 'name asc' : sorting[0]?.id + ' ' + order;
-        const result = await api.post(getServicesList(), {
-          page: pagination.pageIndex + 1,
-          page_size: pagination.pageSize,
-          sorting: sort,
-          is_common: false,
-          search: '',
-        });
-        const services =
-          result.data.response[0].map?.((item: any) => ({
-            id: item.id,
-            name: item.name,
-            description: item.description,
-            slot: item.slot,
-            state: item.state,
-            type: item.type,
-            isCommon: item.iscommon,
-            serviceId: item.serviceId,
-            usedCount: 0,
-            totalPages: item.totalPages,
-            endpoints: [],
-          })) ?? [];
-        set({
-          notCommonServices: services,
-          servicesPagination: pagination,
-          servicesSorting: sorting,
-        });
-      },
-      loadCommonServicesList: async (pagination, sorting) => {
-        const order = sorting[0]?.desc ? 'desc' : 'asc';
-        const sort = sorting.length === 0 ? 'id asc' : sorting[0]?.id + ' ' + order;
-        const result = await api.post(getServicesList(), {
-          page: pagination.pageIndex + 1,
-          page_size: pagination.pageSize,
-          sorting: sort,
-          is_common: true,
-          search: '',
-        });
-        const services =
-          result.data.response[0].map?.((item: any) => ({
-            id: item.id,
-            name: item.name,
-            description: item.description,
-            state: item.state,
-            type: item.type,
-            isCommon: item.iscommon,
-            serviceId: item.serviceId,
-            totalPages: item.totalPages,
-            usedCount: 0,
-            endpoints: [],
-            slot: '',
-          })) ?? [];
+      loadServicesList: async (pagination, sorting, filters = get().servicesFilters, options = {}) => {
+        const requestId = ++latestServicesRequestId;
+        // Silent loads (indexing status polling) don't show the refreshing indicator.
+        if (!options.silent) {
+          if (get().servicesLoadState === 'success') set({ isRefreshingServices: true });
+          else set({ servicesLoadState: 'loading' });
+        }
+
+        let result;
+        try {
+          result = await api.post(getServicesOverview(), {
+            page: pagination.pageIndex + 1,
+            page_size: pagination.pageSize,
+            sorting: toSortingParam(sorting),
+            search: filters.search,
+            state: filters.state,
+            dependencies: filters.dependencies,
+          });
+        } catch (error) {
+          if (requestId === latestServicesRequestId) set({ servicesLoadState: 'error', isRefreshingServices: false });
+          throw error;
+        }
+        if (requestId !== latestServicesRequestId) return;
+
+        const response = result.data.response ?? {};
+        const services: Service[] = (response.services ?? []).map((item: any) => mapService(item, false));
+        const pinnedServices: Service[] = (response.pinned ?? []).map((item: any) => mapService(item, true));
+        announceNewIndexFailures([...get().pinnedServices, ...get().services], [...pinnedServices, ...services]);
+
+        if (options.keepOrder) {
+          const freshById = new Map([...pinnedServices, ...services].map((service) => [service.serviceId, service]));
+          const refreshInPlace = (list: Service[]) =>
+            list.map((service) => {
+              const fresh = freshById.get(service.serviceId);
+              return fresh ? { ...fresh, isPinned: service.isPinned } : service;
+            });
+          set({
+            services: refreshInPlace(get().services),
+            pinnedServices: refreshInPlace(get().pinnedServices),
+            servicesVersion: get().servicesVersion + 1,
+            servicesLoadState: 'success',
+            isRefreshingServices: false,
+          });
+          return;
+        }
 
         set({
-          commonServices: services,
-          commonServicesPagination: pagination,
-          commonServicesSorting: sorting,
+          services,
+          pinnedServices,
+          servicesTotalCount: services[0]?.totalCount ?? 0,
+          servicesTotalPages: Math.max(services[0]?.totalPages ?? 1, 1),
+          servicesPagination: pagination,
+          servicesSorting: sorting,
+          servicesFilters: filters,
+          servicesVersion: get().servicesVersion + 1,
+          servicesLoadState: 'success',
+          isRefreshingServices: false,
         });
       },
-      deleteService: (id) => {
-        const services = get().services.filter((e: Service) => e.serviceId !== id);
-        set({
-          commonServices: services.filter((e: Service) => e.isCommon),
-          notCommonServices: services.filter((e: Service) => !e.isCommon),
+      loadServiceDependencies: async (serviceId) => {
+        const result = await api.post(getServiceDependencies(), { service_id: serviceId });
+        return (result.data.response ?? []).map((item: any): ServiceDependency => ({
+          direction: item.direction,
+          serviceId: item.serviceId,
+          name: item.name,
+          state: item.state ?? null,
+          type: item.type ?? null,
+          deleted: !!item.deleted,
+          incomingCount: item.incomingCount ?? 0,
+          outgoingCount: item.outgoingCount ?? 0,
+        }));
+      },
+      locateService: async (serviceId, pageSize, sorting, filters) => {
+        const result = await api.post(locateServiceApi(), {
+          service_id: serviceId,
+          page_size: pageSize,
+          sorting: toSortingParam(sorting),
+          search: filters.search,
+          state: filters.state,
+          dependencies: filters.dependencies,
         });
+        const location = result.data.response;
+        if (!location?.serviceId) return undefined;
+        return {
+          serviceId: location.serviceId,
+          pinned: !!location.pinned,
+          page: location.page == null ? null : Number(location.page),
+        };
+      },
+      togglePinService: async (service) => {
+        const { servicesPagination, servicesSorting, pinnedServices, services } = get();
+        const pin = !service.isPinned;
+        set({
+          pinnedServices: pin
+            ? [...pinnedServices, { ...service, isPinned: true }]
+            : pinnedServices.filter((s) => s.serviceId !== service.serviceId),
+          services: pin ? services.filter((s) => s.serviceId !== service.serviceId) : services,
+        });
+        try {
+          await api.post(pin ? pinServiceApi() : unpinServiceApi(), { service_id: service.serviceId });
+        } catch (error) {
+          console.error(error);
+          useToastStore.getState().error({ title: i18n.t('overview.service.toast.failed.pin') });
+        }
+        await get().loadServicesList(servicesPagination, servicesSorting);
       },
       selectedService: undefined,
       setSelectedService: (service: Service) => {
@@ -159,44 +301,97 @@ const useServiceListStore = create<ServiceStoreState>()(
           selectedService: service,
         });
       },
-      loadActivationBlockers: async (service: Service) => {
-        const rootFlow = await fetchServiceFlow(service.serviceId);
+      loadFlowCompleteness: async (serviceId: string) => {
+        const [flow, navigableResponse] = await Promise.all([
+          fetchServiceFlow(serviceId),
+          api.get<{ readonly serviceId: string; readonly name: string }[]>(getNavigableServicesList()),
+        ]);
+        if (!flow) throw new Error(`Service ${serviceId} could not be loaded`);
+
+        const navigable = Array.isArray(navigableResponse.data) ? navigableResponse.data : [];
+        return validateFlowCompleteness(
+          flow.nodes,
+          flow.edges,
+          new Map(navigable.map((service) => [service.serviceId, service.name])),
+        );
+      },
+      loadActivationBlockers: async (serviceId: string) => {
+        const rootFlow = await fetchServiceFlow(serviceId);
         if (!rootFlow) return [];
         return findActivationBlockers(rootFlow.nodes, fetchServiceFlow);
       },
-      changeServiceState: async (onEnd, successMessage, errorMessage, activate, draft, pagination, sorting) => {
-        const selectedService = get().selectedService;
-        if (!selectedService) return;
-
+      loadAffectedActiveServices: (serviceId: string) =>
+        findAffectedActiveServices(serviceId, get().loadServiceDependencies),
+      changeServiceState: async (service, state) => {
         try {
-          let state;
-          if (selectedService.state === ServiceState.Active && !draft) state = ServiceState.Inactive;
-          else if (selectedService.state === ServiceState.Active && draft) state = ServiceState.Draft;
-          else if (selectedService.state === ServiceState.Draft) state = ServiceState.Ready;
-          else if (
-            (selectedService.state === ServiceState.Ready && activate) ||
-            (selectedService.state === ServiceState.Inactive && !draft)
-          )
-            state = ServiceState.Active;
-          else state = ServiceState.Draft;
-
-          await api.post(changeServiceStatus(), {
-            id: selectedService.serviceId,
+          const result = await api.post(changeServiceStatus(), {
+            id: service.serviceId,
             state,
-            type: selectedService.type,
+            type: service.type ?? 'POST',
           });
-          useToastStore.getState().success({ title: successMessage });
-          await useServiceListStore.getState().loadServicesList(pagination, sorting);
-          await useServiceListStore.getState().loadCommonServicesList(pagination, sorting);
+          // Activation never fails because of indexing; a validation warning (e.g. missing description) is shown as a toast.
+          const indexWarning: string | undefined = result.data?.response?.indexWarning ?? undefined;
+          if (indexWarning) showServiceIndexValidationToast(indexWarning);
         } catch (error) {
           console.error(error);
-          useToastStore.getState().error({ title: errorMessage });
-          throw error;
+          useToastStore.getState().error({ title: i18n.t('overview.service.toast.failed.state') });
+          return;
         }
+
+        const withNewState = (item: Service) => (item.serviceId === service.serviceId ? { ...item, state } : item);
         set({
-          selectedService: undefined,
+          services: get().services.map(withNewState),
+          pinnedServices: get().pinnedServices.map(withNewState),
         });
-        onEnd();
+        useToastStore.getState().success({ title: i18n.t('overview.service.toast.updated') });
+
+        const { servicesPagination, servicesSorting } = get();
+        await get()
+          .loadServicesList(servicesPagination, servicesSorting, undefined, { keepOrder: true })
+          .catch(console.error);
+      },
+      reindexService: async (service) => {
+        let requestFailed = false;
+        try {
+          await api.post(reindexServiceApi(), { serviceId: service.serviceId });
+        } catch (error: any) {
+          // Validation errors (e.g. missing description) keep the existing indexing status.
+          const validationCode: string | undefined =
+            error?.response?.status === 400 ? error.response.data?.response?.code : undefined;
+          if (validationCode) {
+            showServiceIndexValidationToast(validationCode);
+            return;
+          }
+          console.error(error);
+          requestFailed = true;
+        }
+
+        if (!requestFailed) {
+          // Show Processing right away; the real result arrives through polling.
+          const markInProgress = (item: Service): Service =>
+            item.serviceId === service.serviceId ? { ...item, indexStatus: 'IN_PROGRESS' } : item;
+          set({
+            services: get().services.map(markInProgress),
+            pinnedServices: get().pinnedServices.map(markInProgress),
+          });
+          useToastStore.getState().success({ title: i18n.t('overview.index.toast.started') });
+        }
+
+        const { servicesPagination, servicesSorting } = get();
+        await get()
+          .loadServicesList(servicesPagination, servicesSorting, undefined, { keepOrder: true, silent: true })
+          .catch(console.error);
+
+        // A submission failure is announced by the failure toast once the row turns FAILED;
+        // only show the generic error when the request failed without that.
+        if (requestFailed) {
+          const current = [...get().pinnedServices, ...get().services].find(
+            (item) => item.serviceId === service.serviceId,
+          );
+          if (current?.indexStatus !== 'FAILED') {
+            useToastStore.getState().error({ title: i18n.t('overview.index.toast.failed') });
+          }
+        }
       },
       deleteSelectedService: async (onEnd, successMessage, errorMessage) => {
         const selectedService = get().selectedService;

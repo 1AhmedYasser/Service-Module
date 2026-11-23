@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import api from 'services/api';
-import { extractMapValues, getEndpointBody } from 'store/new-services.store';
+import { buildExplainRequest, findUnresolvedPathPlaceholder } from 'store/new-services.store';
 import useToastStore from 'store/toasts.store';
 import { v4 as uuid } from 'uuid';
 
@@ -54,6 +54,7 @@ const EndpointOpenAPI: React.FC<EndpointOpenAPIProps> = ({
   const [openApiEndpoints, setOpenApiEndpoints] = useState<EndpointDefinition[]>(endpoint.definitions ?? []);
   const [key, setKey] = useState<number>(0);
   const [isTesting, setIsTesting] = useState(false);
+  const [isFetchingEndpoints, setIsFetchingEndpoints] = useState(false);
   const [responseContent, setResponseContent] = useState<string | null>(endpoint.responseSchema ?? null);
   const [isResponseOpen, setIsResponseOpen] = useState(!!endpoint.responseSchema);
   const { t } = useTranslation();
@@ -65,13 +66,18 @@ const EndpointOpenAPI: React.FC<EndpointOpenAPIProps> = ({
 
   const handleTestClick = () => {
     if (!selectedEndpoint) return;
+    const explainRequest = buildExplainRequest(selectedEndpoint);
+    const unresolved = findUnresolvedPathPlaceholder(explainRequest.url);
+    if (unresolved) {
+      useToastStore.getState().error({ title: t('newService.endpoint.missingPathParam', { name: unresolved }) });
+      return;
+    }
     setIsTesting(true);
     const request = {
-      url: selectedEndpoint.url,
-      method: selectedEndpoint.methodType ?? 'GET',
-      headers: extractMapValues(selectedEndpoint.headers) as Record<string, string>,
-      params: extractMapValues(selectedEndpoint.params) as Record<string, string>,
-      body: getEndpointBody(selectedEndpoint),
+      ...explainRequest,
+      method: explainRequest.method ?? 'GET',
+      headers: explainRequest.headers as Record<string, string>,
+      params: explainRequest.params as Record<string, string>,
     };
     generateJsonRequest(selectedEndpoint)
       .then((content) => {
@@ -94,19 +100,19 @@ const EndpointOpenAPI: React.FC<EndpointOpenAPIProps> = ({
   ): EndpointVariableData[] | undefined => {
     if (!contentSchema) return;
     if (contentSchema.items) {
-      const schemaPath: string = contentSchema.items.$ref;
+      const schemaPath: string | undefined = contentSchema.items.$ref;
       return [
         {
           id: uuid(),
-          name: schemaPath.split('/').pop() ?? '',
+          name: schemaPath?.split('/').pop() ?? 'items',
           type: 'array',
           arrayType: 'schema',
           required: false,
-          arrayData: parseSchemaProperty(apiSpec, getPropertySchema(apiSpec, schemaPath)),
+          arrayData: parseSchemaProperty(apiSpec, resolveSchema(apiSpec, contentSchema.items)),
         },
       ];
     } else {
-      return parseSchemaProperty(apiSpec, getPropertySchema(apiSpec, contentSchema.$ref));
+      return parseSchemaProperty(apiSpec, resolveSchema(apiSpec, contentSchema));
     }
   };
 
@@ -149,7 +155,7 @@ const EndpointOpenAPI: React.FC<EndpointOpenAPIProps> = ({
         const parsedSubSchema = parseSchemaProperty(apiSpec, subSchema);
         variableData.schemaData = parsedSubSchema;
       }
-      if (data.type === 'array') {
+      if (data.type === 'array' && data.items) {
         if (Object.keys(data.items).includes('$ref')) {
           variableData.arrayType = 'schema';
           variableData.arrayData = parseSchemaProperty(apiSpec, getPropertySchema(apiSpec, data.items.$ref));
@@ -183,7 +189,14 @@ const EndpointOpenAPI: React.FC<EndpointOpenAPIProps> = ({
     return schema;
   };
 
-  const getParams = (params?: ApiSpecProperty[]): EndpointVariableData[] | undefined => {
+  const resolveSchema = (apiSpec: ApiSpecProperty, schema: ApiSpecProperty): ApiSpecProperty =>
+    schema.$ref ? getPropertySchema(apiSpec, schema.$ref) : schema;
+
+  const getParams = (
+    allParams: ApiSpecProperty[] | undefined,
+    isHeader: boolean,
+  ): EndpointVariableData[] | undefined => {
+    const params = allParams?.filter((param) => (param.in === 'header') === isHeader);
     if (!params || params.length === 0) return;
     return params.map((param) => {
       return {
@@ -192,6 +205,7 @@ const EndpointOpenAPI: React.FC<EndpointOpenAPIProps> = ({
         required: param.required,
         description: param.description,
         in: param.in,
+        paramType: param.in === 'path' || param.in === 'query' ? (param.in as 'path' | 'query') : undefined,
         type: param.type ?? param.schema?.type,
         enum: param.enum,
         default: param.default,
@@ -236,8 +250,8 @@ const EndpointOpenAPI: React.FC<EndpointOpenAPIProps> = ({
           return;
         }
         const body = getEndpointSchema(apiSpec, data.requestBody?.content['application/json']?.schema);
-        const params = getParams(data.parameters);
-        const headers = undefined; // where to get headers ?
+        const params = getParams(data.parameters, false);
+        const headers = getParams(data.parameters, true) ?? [];
         const response = getEndpointResponse(apiSpec, data.responses['200']);
 
         paths.push({
@@ -252,20 +266,19 @@ const EndpointOpenAPI: React.FC<EndpointOpenAPIProps> = ({
           url: endpointUrl,
           openApiUrl,
           dataType: 'custom',
-          body: body
-            ? {
-                variables: body,
-                rawData: {},
-                isRawSelected: false,
-              }
-            : undefined,
-          headers: headers
-            ? {
-                variables: headers,
-                rawData: {},
-                isRawSelected: false,
-              }
-            : undefined,
+          body:
+            body || method.toLowerCase() === 'post'
+              ? {
+                  variables: body ?? [],
+                  rawData: {},
+                  isRawSelected: false,
+                }
+              : undefined,
+          headers: {
+            variables: headers,
+            rawData: {},
+            isRawSelected: false,
+          },
           params: params
             ? {
                 variables: params,
@@ -327,8 +340,10 @@ const EndpointOpenAPI: React.FC<EndpointOpenAPIProps> = ({
             onChange={(e) => setOpenApiUrl(e.target.value)}
           />
           <Button
+            appearance={isFetchingEndpoints ? 'loading' : 'primary'}
             onClick={() => {
-              void fetchOpenApiSpecMock();
+              setIsFetchingEndpoints(true);
+              void fetchOpenApiSpecMock().finally(() => setIsFetchingEndpoints(false));
             }}
           >
             {t('newService.endpoint.ask')}

@@ -5,8 +5,8 @@ import { MdCheck, MdDeleteOutline, MdEdit } from 'react-icons/md';
 import ReactQuill from 'react-quill-new';
 import useServiceStore from 'store/new-services.store';
 import useServiceListStore from 'store/services.store';
-import { generateUniqueId } from 'utils/flow-utils';
-import { getLastDigits, removeNestedTemplates, removeTrailingUnderscores } from 'utils/string-util';
+import { generateUniqueId, getMcqNodeId } from 'utils/flow-utils';
+import { removeNestedTemplates, removeTrailingUnderscores } from 'utils/string-util';
 
 import Button from '../Button';
 import { FormInput, FormRichText } from '../FormElements';
@@ -43,7 +43,7 @@ const MultiChoiceQuestionContent: FC<MultiChoiceQuestionContentProps> = ({
   const selectedService = useServiceListStore((state) => state.selectedService);
   const quillRef = useRef<ReactQuill>(null);
 
-  const mcqNodeNumber = String(getLastDigits(node?.data.label ?? ''));
+  const mcqNodeNumber = String(node ? getMcqNodeId(node.data) : 1);
 
   const handleQuestionChange = (value: string | null) => {
     const formattedValue = removeNestedTemplates(value ?? '');

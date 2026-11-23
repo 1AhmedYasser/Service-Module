@@ -98,6 +98,20 @@ curl -X POST -H "Content-Type: application/json" -d '{
 }' http://localhost:8086/services/auth/login
 ```
 
+### Vault
+
+- Backend secrets (e.g. the Azure Search API key) are read from HashiCorp Vault through a Vault Agent, not from `constants.ini`
+- `docker compose up -d` also starts a local Vault (`service-module-vault`, `service-module-vault-init`, `vault-agent-service-module`), so Service Module runs standalone
+- When running together with Buerokratt-Chatbot's shared Vault, stop the local one first: `docker compose stop service-module-vault vault-agent-service-module`
+- To add a secret locally:
+
+```
+docker exec service-module-vault sh -c 'VAULT_TOKEN=$(awk "/^Initial Root Token:/ {print \$4}" /vault/data/init.txt) \
+  vault kv put secret/service-module/prod/azure-search api_key=<key>'
+```
+
+- Policies, covered flows, failure modes and verification are described in [VAULT README](./docs/vault.md)
+
 ### Kubernetes deployment
 
 For production deploying on kubernetes use this the variable [`REACT_APP_MENU_JSON`](https://github.com/buerokratt/NoOps/blob/dev/Kubernetes/Modules/Service-Module/templates/deployment-byk-services-gui.yaml) with the value:
@@ -152,6 +166,8 @@ The repository uses [SQLFluff](https://sqlfluff.com/) for linting and formatting
 | Ruuter Variable                    | GUI Variable                               | Description                                          | Required | Default Value       |
 | ---------------------------------- | ------------------------------------------ | ---------------------------------------------------- | -------- | ------------------- |
 | `application.apiRequestTestingKey` | `REACT_APP_RUUTER_SERVICES_TESTING_HEADER` | `x-ruuter-testing` header value for testing services |          | `voorshpellhappilo` |
+| `SERVICE_VAULT_AGENT` (`constants.ini`) | | Service Module Vault Agent proxy URL | Yes | `http://vault-agent-service-module:8205` |
+| `SERVICE_VAULT_SECRETS_PATH` (`constants.ini`) | | Vault KV prefix for this environment (`service-module/prod` or `service-module/test`) | Yes | `service-module/prod` |
 
 ## Intent Classification 
 

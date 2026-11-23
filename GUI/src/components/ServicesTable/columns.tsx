@@ -1,257 +1,186 @@
-import { Button, Icon, Track } from '@buerokratt-ria/header/src/components';
 import { createColumnHelper } from '@tanstack/react-table';
-import Label from 'components/Label';
-import Tooltip from 'components/Tooltip';
+import InfoCard from 'components/InfoCard';
 import i18n from 'i18n';
 import { AiOutlineInfoCircle } from 'react-icons/ai';
-import { IoCopyOutline } from 'react-icons/io5';
-import { MdDeleteOutline, MdOutlineDescription, MdOutlineEdit } from 'react-icons/md';
+import { BsPin, BsPinAngle } from 'react-icons/bs';
+import { MdDeleteOutline, MdKeyboardArrowDown, MdKeyboardArrowRight, MdOutlineEdit } from 'react-icons/md';
 import { NavigateFunction } from 'react-router-dom';
 import { ROUTES } from 'resources/routes-constants';
-import useServiceListStore from 'store/services.store';
-import useStore from 'store/store';
-import useToastStore from 'store/toasts.store';
+import useServiceListStore, { ServiceStatusTarget } from 'store/services.store';
 import { Service, ServiceState } from 'types';
-import { getServiceStateLabelType } from 'utils/service-state-label';
+
+import { DependenciesLegendContent, ServiceInfoContent } from './CardContents';
+import DependencyCounts from './DependencyCounts';
+import IndexStatus from './IndexStatus';
+import ServiceStatusButton from './ServiceStatusButton';
 
 interface GetColumnsConfig {
-  isCommon: boolean;
   navigate: NavigateFunction;
   hideDeletePopup: () => void;
-  showReadyPopup: () => void;
+  onChangeStatus: (service: ServiceStatusTarget) => void;
   serviceIdBeingChecked: string | null;
+  expandedIds: ReadonlySet<string>;
+  onToggleExpanded: (service: Service) => void;
+  onFocusService: (service: Service) => void;
+  onReindex: (service: Service) => void;
 }
 
+const openService = (navigate: NavigateFunction, service: Service) => {
+  useServiceListStore.getState().setSelectedService(service);
+  navigate(ROUTES.replaceWithId(ROUTES.EDITSERVICE_ROUTE, service.serviceId));
+};
+
 export const getColumns = ({
-  isCommon,
   navigate,
   hideDeletePopup,
-  showReadyPopup,
+  onChangeStatus,
   serviceIdBeingChecked,
+  expandedIds,
+  onToggleExpanded,
+  onFocusService,
+  onReindex,
 }: GetColumnsConfig) => {
   const columnHelper = createColumnHelper<Service>();
-  const userInfo = useStore.getState().userInfo;
 
   return [
-    columnHelper.accessor('name', {
-      header: i18n.t('overview.service.name') ?? '',
-      meta: {
-        size: 620,
-      },
-      cell: (props) => (
-        <Track align="right" justify="start">
-          <button
-            style={{
-              paddingRight: 3,
-              cursor: 'pointer',
-              color: '#005aa3',
-              background: 'none',
-              border: 'none',
-              padding: 0,
-              font: 'inherit',
-            }}
-            onClick={() => {
-              useServiceListStore.getState().setSelectedService(props.row.original);
-              navigate(ROUTES.replaceWithId(ROUTES.EDITSERVICE_ROUTE, props.row.original.serviceId));
-            }}
-          >
-            {props.cell.getValue()}
-          </button>
-          <Tooltip
-            content={
-              <Track isMultiline={true}>
-                <label
-                  style={{
-                    fontSize: '15px',
-                    maxWidth: '200px',
-                    maxHeight: '200px',
-                    overflow: 'auto',
-                    overflowWrap: 'break-word',
-                    wordWrap: 'break-word',
-                    wordBreak: 'break-word',
-                  }}
-                >
-                  {props.row.original.description ?? ''}
-                </label>
-                <Button
-                  appearance="text"
-                  onClick={() => {
-                    void navigator.clipboard.writeText(props.row.original.description ?? '');
-                    useToastStore.getState().success({
-                      title: i18n.t('overview.descriptionCopiedSuccessfully'),
-                    });
-                  }}
-                  style={{ paddingLeft: '5px' }}
-                >
-                  <Icon style={{ color: 'black' }} icon={<IoCopyOutline />} size="small" />
-                </Button>
-              </Track>
-            }
-          >
-            <div style={{ display: 'inline-flex' }}>
-              <Icon icon={<MdOutlineDescription />} size="medium" />
-            </div>
-          </Tooltip>
-        </Track>
-      ),
-    }),
-    columnHelper.accessor('description', {
-      header: i18n.t('overview.service.description') ?? '',
-      meta: {
-        size: 200,
-      },
+    columnHelper.display({
+      id: 'expander',
       cell: (props) => {
-        const description = props.row.original.description ?? '';
-        const isLong = description.length > 80;
-        const truncated = isLong ? `${description.slice(0, 80)}...` : description;
-
+        const isExpanded = expandedIds.has(props.row.original.serviceId);
         return (
-          <Track align="right" justify="start">
-            <label style={{ pointerEvents: 'none' }}>{truncated}</label>
-            <Tooltip
-              content={
-                <Track isMultiline={true}>
-                  <label
-                    style={{
-                      fontSize: '15px',
-                      maxWidth: '200px',
-                      maxHeight: '400px',
-                      overflow: 'auto',
-                      overflowWrap: 'break-word',
-                      wordWrap: 'break-word',
-                      wordBreak: 'break-word',
-                    }}
-                  >
-                    {description}
-                  </label>
-                  <Button
-                    appearance="text"
-                    onClick={() => {
-                      void navigator.clipboard.writeText(description);
-                      useToastStore.getState().success({
-                        title: i18n.t('overview.descriptionCopiedSuccessfully'),
-                      });
-                    }}
-                    style={{ paddingLeft: '5px' }}
-                  >
-                    <Icon style={{ color: 'black' }} icon={<IoCopyOutline />} size="small" />
-                  </Button>
-                </Track>
-              }
-            >
-              <div style={{ cursor: 'pointer' }}>
-                {isLong && (
-                  <Icon
-                    style={{ paddingTop: '6px' }}
-                    icon={<AiOutlineInfoCircle fontSize={20} color="#005aa3" />}
-                    size="medium"
-                  />
-                )}
-              </div>
-            </Tooltip>
-          </Track>
+          <button
+            type="button"
+            className="services-table__expander"
+            aria-expanded={isExpanded}
+            aria-label={i18n.t(isExpanded ? 'overview.dependencies.collapse' : 'overview.dependencies.expand') ?? ''}
+            onClick={() => onToggleExpanded(props.row.original)}
+          >
+            {isExpanded ? <MdKeyboardArrowDown /> : <MdKeyboardArrowRight />}
+          </button>
         );
       },
+    }),
+    columnHelper.accessor('name', {
+      header: i18n.t('overview.table.name') ?? '',
+      cell: (props) => {
+        const service = props.row.original;
+        return (
+          <span className="services-table__name-cell">
+            <button
+              type="button"
+              className="services-table__service-link"
+              title={service.name}
+              onClick={() => openService(navigate, service)}
+            >
+              {service.name}
+            </button>
+            <InfoCard title={i18n.t('overview.serviceInfo.title')} content={<ServiceInfoContent service={service} />}>
+              <button
+                type="button"
+                className="services-table__info-button"
+                aria-label={i18n.t('overview.serviceInfo.open') ?? ''}
+              >
+                <AiOutlineInfoCircle />
+              </button>
+            </InfoCard>
+          </span>
+        );
+      },
+    }),
+    columnHelper.accessor((service) => (service.incomingCount ?? 0) + (service.outgoingCount ?? 0), {
+      id: 'dependencies',
+      header: () => (
+        <span className="services-table__header-with-info">
+          {i18n.t('overview.table.dependencies')}
+          <InfoCard title={i18n.t('overview.dependencies.title')} content={<DependenciesLegendContent />}>
+            <button
+              type="button"
+              className="services-table__info-button"
+              aria-label={i18n.t('overview.dependencies.open') ?? ''}
+            >
+              <AiOutlineInfoCircle />
+            </button>
+          </InfoCard>
+        </span>
+      ),
+      cell: (props) => (
+        <DependencyCounts
+          incoming={props.row.original.incomingCount ?? 0}
+          outgoing={props.row.original.outgoingCount ?? 0}
+          problems={props.row.original.problemCount ?? 0}
+          onClick={() => onFocusService(props.row.original)}
+        />
+      ),
     }),
     columnHelper.accessor('state', {
-      header: i18n.t('overview.service.state') ?? '',
-      meta: {
-        size: 120,
-      },
+      header: i18n.t('overview.table.status') ?? '',
       cell: (props) => {
-        const isServiceMatch = serviceIdBeingChecked === props.row.original.serviceId;
-
+        const service = props.row.original;
         return (
-          <Track
-            justify="start"
-            onClick={() => {
-              if (isServiceMatch) return;
-              useServiceListStore.getState().setSelectedService(props.row.original);
-              const state = props.row.original.state;
-              if (state === ServiceState.Ready) {
-                showReadyPopup();
-              }
-            }}
-          >
-            <Label type={getServiceStateLabelType(props.row.original.state)}>
-              <span className="service-state-cell">
-                <span style={{ visibility: isServiceMatch ? 'hidden' : 'visible' }}>
-                  {i18n.t(`overview.service.states.${props.row.original.state}`)}
-                </span>
-                {isServiceMatch && <span className="service-state-spinner" />}
-              </span>
-            </Label>
-          </Track>
+          <ServiceStatusButton
+            state={service.state}
+            isLoading={serviceIdBeingChecked === service.serviceId}
+            onClick={() => onChangeStatus(service)}
+          />
         );
       },
     }),
-    columnHelper.display({
-      id: 'edit',
-      meta: {
-        size: 90,
-      },
+    columnHelper.accessor('indexStatus', {
+      id: 'index',
+      header: i18n.t('overview.table.index') ?? '',
       cell: (props) => (
-        <Track align="right" justify="start">
-          <Button
-            appearance="text"
-            onClick={() => {
-              useServiceListStore.getState().setSelectedService(props.row.original);
-              navigate(ROUTES.replaceWithId(ROUTES.EDITSERVICE_ROUTE, props.row.original.serviceId));
-            }}
-          >
-            <Icon icon={<MdOutlineEdit />} size="medium" />
-            {i18n.t('overview.edit')}
-          </Button>
-        </Track>
+        <IndexStatus
+          status={props.row.original.indexStatus}
+          failureReason={props.row.original.indexFailureReason}
+          canReindex={props.row.original.state === ServiceState.Active}
+          onReindex={() => onReindex(props.row.original)}
+        />
       ),
     }),
-    // columnHelper.display({
-    //   id: 'export',
-    //   meta: {
-    //     size: 90,
-    //   },
-    //   cell: (props) => (
-    //     <Track align="right" justify="start">
-    //       <Button
-    //         appearance="text"
-    //         onClick={async () => {
-    //           const response = await api.post<Service>(getServiceById(), {
-    //             id: props.row.original.serviceId,
-    //             search: '',
-    //           });
-    //           await exportServices([response.data]);
-    //         }}
-    //       >
-    //         <Icon icon={<AiOutlineExport />} size="medium" />
-    //         {i18n.t('overview.export')}
-    //       </Button>
-    //     </Track>
-    //   ),
-    // }),
     columnHelper.display({
-      id: 'delete',
-      meta: {
-        size: 90,
+      id: 'actions',
+      header: i18n.t('overview.table.actions') ?? '',
+      cell: (props) => {
+        const service = props.row.original;
+        const canDelete = service.state === ServiceState.Draft || service.state === ServiceState.Ready;
+
+        return (
+          <span className="services-table__actions">
+            <button
+              type="button"
+              className={`services-table__text-action services-table__pin${service.isPinned ? ' services-table__pin--pinned' : ''}`}
+              aria-pressed={!!service.isPinned}
+              onClick={() => void useServiceListStore.getState().togglePinService(service)}
+            >
+              {service.isPinned ? <BsPin aria-hidden /> : <BsPinAngle aria-hidden />}
+              {i18n.t(service.isPinned ? 'overview.pin.pinned' : 'overview.pin.pin')}
+            </button>
+            <span className="services-table__actions-divider" aria-hidden />
+            <button
+              type="button"
+              className="services-table__icon-action"
+              aria-label={i18n.t('overview.edit') ?? ''}
+              title={i18n.t('overview.edit') ?? ''}
+              onClick={() => openService(navigate, service)}
+            >
+              <MdOutlineEdit />
+            </button>
+            <button
+              type="button"
+              className="services-table__icon-action"
+              aria-label={i18n.t('overview.delete') ?? ''}
+              title={i18n.t('overview.delete') ?? ''}
+              disabled={!canDelete}
+              onClick={() => {
+                useServiceListStore.getState().setSelectedService(service);
+                hideDeletePopup();
+              }}
+            >
+              <MdDeleteOutline />
+            </button>
+          </span>
+        );
       },
-      cell: (props) => (
-        <Track align="right">
-          <Button
-            disabled={
-              isCommon === true && !userInfo?.authorities.includes('ROLE_ADMINISTRATOR')
-                ? true
-                : props.row.original.state != ServiceState.Draft && props.row.original.state != ServiceState.Ready
-            }
-            appearance="text"
-            onClick={() => {
-              useServiceListStore.getState().setSelectedService(props.row.original);
-              hideDeletePopup();
-            }}
-          >
-            <Icon icon={<MdDeleteOutline />} size="medium" />
-            {i18n.t('overview.delete')}
-          </Button>
-        </Track>
-      ),
     }),
   ];
 };

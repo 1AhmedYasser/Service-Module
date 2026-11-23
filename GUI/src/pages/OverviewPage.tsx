@@ -21,10 +21,10 @@ const OverviewPage: React.FC = () => {
   }, []);
 
   return (
-    <>
+    <div className="overview-page">
       <Track justify="between">
         <h1>{t('overview.services')}</h1>
-        <Track gap={16}>
+        <Track gap={12}>
           <input
             type="file"
             ref={fileInputRef}
@@ -33,18 +33,20 @@ const OverviewPage: React.FC = () => {
             style={{ display: 'none' }}
             multiple
           />
-          <Button onClick={triggerFileInput}>{t('overview.importMany')}</Button>
-          <Button onClick={() => setIsExportModalVisible(true)}>{t('overview.exportMany')}</Button>
-          <Button onClick={() => navigate(ROUTES.NEWSERVICE_ROUTE)}>{t('overview.create')}</Button>
+          <Button onClick={triggerFileInput} appearance="outline" style={{ padding: '8px 20px' }}>
+            {t('overview.importMany')}
+          </Button>
+          <Button onClick={() => setIsExportModalVisible(true)} appearance="outline" style={{ padding: '8px 20px' }}>
+            {t('overview.exportMany')}
+          </Button>
+          <Button onClick={() => navigate(ROUTES.NEWSERVICE_ROUTE)} style={{ padding: '8px 20px' }}>
+            {t('overview.create')}
+          </Button>
         </Track>
       </Track>
       <ServicesTable />
-      <Track justify="between">
-        <h1>{t('overview.commonServices')}</h1>
-      </Track>
-      <ServicesTable isCommon />
       <ExportServicesModal isVisible={isExportModalVisible} onClose={() => setIsExportModalVisible(false)} />
-    </>
+    </div>
   );
 };
 

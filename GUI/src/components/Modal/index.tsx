@@ -1,5 +1,5 @@
 import * as RadixDialog from '@radix-ui/react-dialog';
-import React, { FC, PropsWithChildren, ReactNode } from 'react';
+import React, { Children, FC, PropsWithChildren, ReactNode } from 'react';
 
 import { Track } from '..';
 import './Modal.scss';
@@ -34,7 +34,7 @@ const Modal: FC<PropsWithChildren<ModalProps>> = ({
               <RadixDialog.Title className="h3 modal__title">{title}</RadixDialog.Title>
             </div>
           )}
-          <div className="modal__body">{children}</div>
+          {Children.toArray(children).length > 0 && <div className="modal__body">{children}</div>}
           {footer && (
             <Track className="modal__footer" gap={16} justify="end">
               {footer}

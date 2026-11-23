@@ -76,3 +76,39 @@ describe('onContinueClick flow completeness gate', () => {
     expect(saveFlowClick).toHaveBeenCalledWith('ready', true);
   });
 });
+
+describe('saveToHistory unsaved changes tracking', () => {
+  const nodes = [startNode, stepNode('step-1')];
+  const edges: Edge[] = [{ id: 'e1', source: 'start-1', target: 'step-1' }];
+
+  beforeEach(() => {
+    useServiceStore.setState({
+      nodes,
+      edges,
+      history: [{ nodes: JSON.parse(JSON.stringify(nodes)), edges: JSON.parse(JSON.stringify(edges)) }],
+      historyIndex: 0,
+      hasUnsavedChanges: false,
+    });
+  });
+
+  it('does not mark the service as unsaved when only the selection changed', () => {
+    useServiceStore.setState({
+      nodes: nodes.map((node) => ({ ...node, selected: node.id === 'step-1' })),
+      edges: edges.map((edge) => ({ ...edge, selected: true })),
+    });
+
+    useServiceStore.getState().saveToHistory();
+
+    expect(useServiceStore.getState().hasUnsavedChanges).toBe(false);
+    expect(useServiceStore.getState().history).toHaveLength(1);
+  });
+
+  it('marks the service as unsaved when the flow changed', () => {
+    useServiceStore.setState({ nodes: [...nodes, stepNode('step-2')] });
+
+    useServiceStore.getState().saveToHistory();
+
+    expect(useServiceStore.getState().hasUnsavedChanges).toBe(true);
+    expect(useServiceStore.getState().history).toHaveLength(2);
+  });
+});

@@ -1,0 +1,46 @@
+$affected-service-row-height: 40px;
+$affected-service-row-gap: 4px;
+$affected-services-visible-rows: 10;
+
+.affected-services {
+  display: flex;
+  flex-direction: column;
+  gap: $affected-service-row-gap;
+  max-height: $affected-services-visible-rows * $affected-service-row-height + ($affected-services-visible-rows - 1) *
+    $affected-service-row-gap;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+
+  &__description {
+    margin-bottom: 16px;
+  }
+
+  &__item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    width: 100%;
+    height: $affected-service-row-height;
+    padding: 0 12px;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+    font: inherit;
+    color: #005aa3;
+
+    strong {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    &:hover {
+      background: rgba(0, 90, 163, 0.08);
+    }
+  }
+}

@@ -1,7 +1,7 @@
 declaration:
   call: declare
   version: 0.1
-  description: "Wrapper for manual re-index triggered from the UI. Calls index-llm as a sub-flow and handles crashes (e.g. LLM service unreachable) by writing FAILED to the DB — same pattern as update-endpoint."
+  description: "Manual re-index triggered from the UI. Calls index-llm, which owns all indexing status changes, and passes its result through: 202 started, 400 validation error, 404 not found, 500 submission failed."
   method: post
   accepts: json
   returns: json
@@ -35,34 +35,62 @@ call_index_llm:
       endpointId: ${endpointId}
   result: index_llm_result
 
+assign_index_result:
+  assign:
+    index_status_code: "${index_llm_result != null && index_llm_result.response != null ? index_llm_result.response.statusCodeValue : 500}"
+    index_body: "${index_llm_result != null && index_llm_result.response != null && index_llm_result.response.body != null ? index_llm_result.response.body.response : null}"
+
 check_index_llm_result:
   switch:
-    - condition: ${index_llm_result != null && index_llm_result.response != null && 200 <= index_llm_result.response.statusCodeValue && index_llm_result.response.statusCodeValue < 300}
-      next: return_ok
-  next: mark_llm_sync_failed
+    - condition: ${index_body != null && index_body.code != null && String(index_body.code).startsWith('VALIDATION_')}
+      next: return_validation_error
+    - condition: ${200 <= index_status_code && index_status_code < 300}
+      next: return_accepted
+    - condition: ${index_status_code === 404}
+      next: return_not_found
+  next: check_index_crashed
 
-mark_llm_sync_failed:
+# When the LLM module is unreachable, Ruuter aborts the indexing flow after the attempt started
+# (a connection error cannot be caught inside that flow), so it returns 5xx and the attempt would
+# stay IN_PROGRESS until the timeout. Mark it FAILED here; a result already recorded is not touched.
+check_index_crashed:
+  switch:
+    - condition: ${index_llm_result != null && index_llm_result.response != null && index_llm_result.response.statusCodeValue >= 500}
+      next: mark_index_unreachable
+  next: log_reindex_failure
+
+mark_index_unreachable:
   call: http.post
   args:
-    url: "[#SERVICE_RESQL]/endpoints/update_endpoint_llm_sync_status"
+    url: "[#SERVICE_RESQL]/endpoints/mark_endpoint_llm_index_unreachable"
     body:
       endpointId: ${endpointId}
-      status: FAILED
-  result: update_sync_res
+      failureReason: "LLM module is not reachable. Please try again later."
+  result: mark_unreachable_res
   next: log_reindex_failure
 
 log_reindex_failure:
-  log: "Re-index failed for endpoint ${endpointId}"
+  log: "Re-index failed for endpoint ${endpointId} (HTTP ${index_status_code})"
   next: return_failed
 
-return_ok:
-  status: 200
-  return: "Endpoint re-indexed successfully"
+return_accepted:
+  status: 202
+  return: ${index_body}
+  next: end
+
+return_validation_error:
+  status: 400
+  return: ${index_body}
+  next: end
+
+return_not_found:
+  status: 404
+  return: "Endpoint not found"
   next: end
 
 return_failed:
   status: 500
-  return: "Re-index failed"
+  return: ${index_body ?? 'Re-index failed'}
   next: end
 
 return_bad_request:

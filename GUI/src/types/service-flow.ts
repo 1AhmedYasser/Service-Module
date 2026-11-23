@@ -20,6 +20,7 @@ export interface ServiceExportSettings {
   readonly description?: string;
   readonly examples?: string[];
   readonly keywords?: string[];
+  readonly discoverable?: boolean;
 }
 
 export interface FlowData {
@@ -48,6 +49,7 @@ export type NodeDataProps = {
   rules?: Group;
   assignElements?: Assign[];
   multiChoiceQuestion?: MultiChoiceQuestion;
+  mcqNodeId?: number;
   dynamicChoices?: DynamicChoices;
   jumpToService?: JumpToService;
   childrenCount: number;

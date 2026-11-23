@@ -6,6 +6,10 @@ import { MdCheck, MdClose, MdOutlineClose, MdOutlineEdit } from 'react-icons/md'
 import { Button, FormInput, Icon, Track } from '..';
 import './Popup.scss';
 
+const TITLE_MAX_LENGTH = 64;
+
+const sanitizeTitle = (value: string) => value.normalize('NFC').replace(/[^a-zA-Z0-9õäöüšžÕÄÖÜŠŽ\-\s]/g, '');
+
 type DialogProps = HTMLAttributes<HTMLDivElement> & {
   title: string;
   description?: string;
@@ -49,18 +53,49 @@ const Popup: FC<PropsWithChildren<DialogProps>> = ({
     setIsEditingTitle(true);
   };
 
+  const applyTitleInput = (input: HTMLInputElement) => {
+    const rawValue = input.value;
+    const rawCaret = input.selectionStart ?? rawValue.length;
+    let value = sanitizeTitle(rawValue);
+    let caret = sanitizeTitle(rawValue.slice(0, rawCaret)).length;
+
+    const overflow = value.length - TITLE_MAX_LENGTH;
+    if (overflow > 0) {
+      const cutStart = Math.max(0, caret - overflow);
+      value = value.slice(0, cutStart) + value.slice(caret);
+      caret = cutStart;
+    }
+    value = value.slice(0, TITLE_MAX_LENGTH);
+    caret = Math.min(caret, value.length);
+
+    setTempTitle(value);
+    onTitleChange?.(value);
+
+    if (value !== rawValue) {
+      requestAnimationFrame(() => input.setSelectionRange(caret, caret));
+    }
+  };
+
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const sanitizedValue = e.target.value.replace(/[^a-zA-Z0-9-\s]/g, '');
-    setTempTitle(sanitizedValue);
-    onTitleChange?.(sanitizedValue);
+    if ((e.nativeEvent as InputEvent).isComposing) {
+      setTempTitle(e.target.value);
+      return;
+    }
+    applyTitleInput(e.target);
+  };
+
+  const handleTitleCompositionEnd = (e: React.CompositionEvent<HTMLInputElement>) => {
+    applyTitleInput(e.currentTarget);
   };
 
   const handleTitleSave = () => {
-    if (!titleError && tempTitle.trim() !== '') {
+    const trimmedTitle = tempTitle.trim();
+    if (!titleError && trimmedTitle !== '') {
       setIsEditingTitle(false);
-      setTitle(tempTitle.trim());
-      if (onTitleSave && tempTitle !== title) {
-        onTitleSave?.(tempTitle.trim());
+      setTitle(trimmedTitle);
+      setTempTitle(trimmedTitle);
+      if (onTitleSave && trimmedTitle !== title) {
+        onTitleSave(trimmedTitle);
       }
     }
   };
@@ -105,8 +140,8 @@ const Popup: FC<PropsWithChildren<DialogProps>> = ({
           {...rest}
         >
           <div className="popup__header">
-            <Track style={{ width: '100%' }} justify="between" align="center">
-              <Track gap={8} style={{ alignItems: 'center' }}>
+            <Track style={{ width: '100%', minWidth: 0 }} justify="between" align="center">
+              <Track gap={8} style={{ alignItems: 'center', minWidth: 0 }}>
                 {isEditingTitle ? (
                   <Track style={{ alignItems: 'center', gap: 8, width: '100%' }}>
                     <div>
@@ -118,10 +153,11 @@ const Popup: FC<PropsWithChildren<DialogProps>> = ({
                         value={tempTitle}
                         onKeyDown={handleTitleKeyDown}
                         onChange={handleTitleChange}
-                        maxLength={30}
+                        onCompositionEnd={handleTitleCompositionEnd}
+                        maxLength={TITLE_MAX_LENGTH}
                         style={{
-                          minWidth: '200px',
-                          maxWidth: '200px',
+                          minWidth: '400px',
+                          maxWidth: '400px',
                           backgroundColor: 'transparent',
                           border: 'none',
                           textOverflow: 'ellipsis',

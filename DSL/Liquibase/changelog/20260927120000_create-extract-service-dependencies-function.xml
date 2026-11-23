@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+    <changeSet id="20260927120000" author="1AhmedYasser">
+        <sqlFile path="changelog/migrations/20260927120000_create-extract-service-dependencies-function.sql" splitStatements="false" />
+        <rollback>
+            <sqlFile path="changelog/migrations/rollback/20260927120000_create-extract-service-dependencies-function_rollback.sql" />
+        </rollback>
+    </changeSet>
+</databaseChangeLog>

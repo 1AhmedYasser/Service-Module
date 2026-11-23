@@ -10,9 +10,9 @@ import useToastStore from 'store/toasts.store';
 import { StepType } from 'types';
 import { Assign } from 'types/assign';
 import { NodeDataProps } from 'types/service-flow';
+import { getEndpointResultName, getMcqNodeId } from 'utils/flow-utils';
 import {
   decodeHtmlEntities,
-  getLastDigits,
   isNumericString,
   removeTrailingUnderscores,
   removeWrapperQuotes,
@@ -65,7 +65,7 @@ export function normalizeMcqPayloads(nodes: Node<NodeDataProps>[], serviceName: 
     const buttons = node.data.multiChoiceQuestion?.buttons;
     if (!Array.isArray(buttons) || buttons.length === 0) return node;
 
-    const mcqNodeId = getLastDigits(toSnakeCase(node.data.label ?? ''));
+    const mcqNodeId = getMcqNodeId(node.data);
 
     const normalizedButtons = buttons.map((btn, idx) => {
       // Only rewrite payloads that already follow the MCQ payload convention.
@@ -172,7 +172,7 @@ export function buildAllServiceContents(
 
       const foundIndex = mcqNode.data?.multiChoiceQuestion?.buttons.findIndex((b: any) => b.title === edge.label) ?? -1;
       const buttonIndex = foundIndex === -1 ? edgeIdx : foundIndex;
-      const mcqNodeId = getLastDigits(toSnakeCase(mcqNode.data.label ?? ''));
+      const mcqNodeId = getMcqNodeId(mcqNode.data);
       const suffix = `_mcq_${mcqNodeId}_${buttonIndex}`;
       const subServiceName = `${name}${suffix}`;
 
@@ -204,7 +204,7 @@ interface SaveFlowConfig {
   slot: string;
   examples: string[];
   entities: string[];
-  isCommon: boolean;
+  discoverable: boolean;
   serviceId: string;
   isNewService: boolean;
   status: 'draft' | 'ready';
@@ -296,7 +296,7 @@ export const saveFlow = async ({
   slot,
   examples,
   entities,
-  isCommon,
+  discoverable,
   serviceId,
   isNewService,
   status = 'ready',
@@ -326,14 +326,13 @@ export const saveFlow = async ({
         slot,
         examples,
         entities,
-        isCommon,
+        discoverable,
         nodes,
         edges,
         isNewService,
       } as SaveFlowConfig,
       true,
       status,
-      onError,
     );
 
     for (const mcqNode of mcqNodes) {
@@ -345,7 +344,7 @@ export const saveFlow = async ({
 
         const foundIndex = mcqNode?.data?.multiChoiceQuestion?.buttons.findIndex((e: any) => e.title === edge.label);
         const buttonIndex = foundIndex === -1 ? edgeIdx : foundIndex;
-        const mcqNodeId = getLastDigits(toSnakeCase(mcqNode.data.label ?? ''));
+        const mcqNodeId = getMcqNodeId(mcqNode.data);
         const serviceName = `${name}_mcq_${mcqNodeId}_${buttonIndex}`;
         const branchNodes = getBranchNodes(nodes, edges, nextNode);
         const branchEdges = edges.filter((edge) =>
@@ -361,7 +360,7 @@ export const saveFlow = async ({
             slot,
             examples,
             entities,
-            isCommon,
+            discoverable,
             nodes,
             edges,
             isNewService,
@@ -384,39 +383,36 @@ async function saveService(
   config: SaveFlowConfig,
   updateServiceDb: boolean,
   status: 'draft' | 'ready' = 'ready',
-  onError?: (e: any) => void,
 ) {
-  const { isNewService, serviceId, name, description, slot, examples, entities, isCommon, edges, nodes } = config;
+  const { isNewService, serviceId, name, description, slot, examples, entities, discoverable, edges, nodes } = config;
   if (updateServiceDb) {
     useServiceStore.getState().changeServiceName(removeTrailingUnderscores(name));
   }
-  await api
-    .post(
-      isNewService ? createNewService() : editService(serviceId),
-      {
-        name: removeTrailingUnderscores(name),
-        serviceId,
-        description,
-        slot,
-        examples,
-        entities,
-        type: 'POST',
-        content: content,
-        isCommon,
-        structure: JSON.stringify({
-          edges: edges.map(({ selected: _selected, ...edge }) => edge),
-          nodes: nodes.map(({ selected: _selected, ...node }) => node),
-        }),
-        updateServiceDb: updateServiceDb,
-        state: status,
+  await api.post(
+    isNewService ? createNewService() : editService(serviceId),
+    {
+      name: removeTrailingUnderscores(name),
+      serviceId,
+      description,
+      slot,
+      examples,
+      entities,
+      discoverable,
+      type: 'POST',
+      content: content,
+      structure: JSON.stringify({
+        edges: edges.map(({ selected: _selected, ...edge }) => edge),
+        nodes: nodes.map(({ selected: _selected, ...node }) => node),
+      }),
+      updateServiceDb: updateServiceDb,
+      state: status,
+    },
+    {
+      params: {
+        location: `${import.meta.env.REACT_APP_RUUTER_SERVICES_POST_PATH}/${name}.yml`,
       },
-      {
-        params: {
-          location: `${import.meta.env.REACT_APP_RUUTER_SERVICES_POST_PATH}/${name}.yml`,
-        },
-      },
-    )
-    .catch(onError);
+    },
+  );
 }
 
 const validateMCQ = (node: NodeDataProps | undefined) => {
@@ -529,6 +525,11 @@ export function getYamlContent(
           type: 'object',
           description: 'The Input from the user',
         },
+        {
+          field: 'testMode',
+          type: 'boolean',
+          description: 'Set only by the canvas Test Widget to allow draft and ready Next Service targets',
+        },
       ],
     },
   });
@@ -589,7 +590,7 @@ export function getYamlContent(
       }
 
       if (parentNode.data.stepType === StepType.UserDefined) {
-        return handleEndpointStep(parentNode, finishedFlow, parentStepName, childNode, nonceStepsNeeded);
+        return handleEndpointStep(parentNode, nodes, finishedFlow, parentStepName, childNode, nonceStepsNeeded);
       }
 
       if (parentNode.data.stepType === StepType.JumpToService) {
@@ -861,6 +862,7 @@ function normalizeAssignValue(value: string): string {
 
 function handleEndpointStep(
   parentNode: Node<NodeDataProps>,
+  nodes: Node[],
   finishedFlow: Map<any, any>,
   parentStepName: string,
   childNode: Node<NodeDataProps> | undefined,
@@ -883,7 +885,7 @@ function handleEndpointStep(
     args: {
       url: resolvedUrl,
     },
-    result: `${parentNode.data.endpoint?.name.replaceAll(' ', '_')}_res`,
+    result: getEndpointResultName(parentNode, nodes),
     next: childNode ? toSnakeCase(childNode.data.label ?? 'format_messages') : 'format_messages',
   };
 
@@ -1089,6 +1091,7 @@ function handleJumpToServiceStep(parentNode: Node<NodeDataProps>, finishedFlow: 
       authorId: "${authorId ?? ''}",
       serviceName: parentNode.data.jumpToService?.serviceName ?? '',
       input: (parentNode.data.jumpToService?.input ?? []).map((e: Assign) => normalizeAssignValue(e.value)),
+      testMode: "${incoming.body.testMode === true || incoming.body.testMode === 'true'}",
     },
     result: resultName,
     next: returnStepName,
@@ -1220,7 +1223,7 @@ export const saveFlowClick = async (status: 'draft' | 'ready' = 'ready', showErr
   const slot = useServiceStore.getState().slot;
   const examples = useServiceStore.getState().examples;
   const entities = useServiceStore.getState().entities;
-  const isCommon = useServiceStore.getState().isCommon;
+  const discoverable = useServiceStore.getState().discoverable;
   const isNewService = useServiceStore.getState().isNewService;
   const edges = useServiceStore.getState().edges;
   const nodes = useServiceStore.getState().nodes as Node<NodeDataProps>[];
@@ -1246,7 +1249,7 @@ export const saveFlowClick = async (status: 'draft' | 'ready' = 'ready', showErr
     slot,
     examples,
     entities,
-    isCommon,
+    discoverable,
     serviceId,
     isNewService,
     status,

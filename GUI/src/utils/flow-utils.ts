@@ -3,35 +3,62 @@ import { Group, Rule } from 'components/FlowElementsPopup/RuleBuilder/types';
 import { t } from 'i18next';
 import { Assign, Step, StepType } from 'types';
 import { NodeDataProps } from 'types/service-flow';
+import { getLastDigits, toSnakeCase } from 'utils/string-util';
 
 interface ValidationResult {
   isValid: boolean;
   error?: string;
 }
 
+export const RESERVED_STEP_NAMES = ['declaration', 'prepare', 'format_messages', 'assign_dynamic_choices_buttons'];
+
+export const isStepNameTaken = (label: string, nodes: Node[], excludeNodeId?: string) => {
+  const stepName = toSnakeCase(label);
+  return (
+    RESERVED_STEP_NAMES.includes(stepName) ||
+    nodes.some((node) => node.id !== excludeNodeId && toSnakeCase(String(node.data?.label ?? '')) === stepName)
+  );
+};
+
+export const getMcqNodeId = (data: Partial<NodeDataProps>) =>
+  data.mcqNodeId ?? getLastDigits(toSnakeCase(data.label ?? ''));
+
+export const getNextMcqNodeId = (nodes: Node[]) => {
+  const usedIds = new Set(
+    nodes
+      .filter((node) => node.data?.stepType === StepType.MultiChoiceQuestion)
+      .map((node) => getMcqNodeId(node.data as NodeDataProps)),
+  );
+  let nextId = 1;
+  while (usedIds.has(nextId)) nextId++;
+  return nextId;
+};
+
+const getLabelNumber = (label: string) => {
+  const parts = label.split(' - ');
+  if (parts.length > 1) {
+    const num = parseInt(parts[parts.length - 1]);
+    return isNaN(num) ? 0 : num;
+  }
+  return 0;
+};
+
 export const getNodeLabel = (step: Step, nodes: Node[]) => {
   const baseLabel = step.label.split(' - ').pop() ?? '';
-  const existingNumbers = nodes
-    .filter((node) => node.data.stepType === step.type)
-    .map((node) => node.data.label as string)
-    .filter((label) => label.startsWith(baseLabel))
-    .map((label) => {
-      const parts = label.split(' - ');
-      if (parts.length > 1) {
-        const num = parseInt(parts[parts.length - 1]);
-        return isNaN(num) ? 0 : num;
-      }
-      return 0;
-    })
-    .sort((a, b) => a - b);
+  const sameTypeNodes = nodes.filter((node) => node.data.stepType === step.type);
+
+  const existingNumbers = new Set(
+    step.type === StepType.MultiChoiceQuestion
+      ? sameTypeNodes.map((node) => getMcqNodeId(node.data as NodeDataProps))
+      : sameTypeNodes
+          .map((node) => (node.data.label as string) ?? '')
+          .filter((label) => label.startsWith(baseLabel))
+          .map(getLabelNumber),
+  );
 
   let nextNumber = 1;
-  for (const num of existingNumbers) {
-    if (num === nextNumber) {
-      nextNumber++;
-    } else if (num > nextNumber) {
-      break;
-    }
+  while (existingNumbers.has(nextNumber) || isStepNameTaken(`${baseLabel} - ${nextNumber}`, nodes)) {
+    nextNumber++;
   }
 
   return `${baseLabel} - ${nextNumber}`;
@@ -41,30 +68,65 @@ export const generateUniqueId = () => {
   return crypto.randomUUID();
 };
 
+export const getEndpointResultName = (node: Node, nodes: Node[]): string => {
+  const endpointName = (node.data as NodeDataProps).endpoint?.name ?? '';
+  const baseName = endpointName.replaceAll(' ', '_');
+  const firstNode = nodes.find(
+    (n) => n.data.stepType === StepType.UserDefined && (n.data as NodeDataProps).endpoint?.name === endpointName,
+  );
+  if (!firstNode || firstNode.id === node.id) return `${baseName}_res`;
+  return `${baseName}_${node.id.replaceAll('-', '').slice(0, 8)}_res`;
+};
+
+export const getEndpointResultNameChanges = (prevNodes: Node[], nextNodes: Node[]): Map<string, string> => {
+  const changes = new Map<string, string>();
+  const isEndpointNode = (n: Node) => n.data.stepType === StepType.UserDefined;
+
+  for (const prevNode of prevNodes.filter(isEndpointNode)) {
+    const nextNode = nextNodes.find((n) => n.id === prevNode.id);
+    if (!nextNode || !isEndpointNode(nextNode)) continue;
+    const oldName = getEndpointResultName(prevNode, prevNodes);
+    const newName = getEndpointResultName(nextNode, nextNodes);
+    if (oldName !== newName) changes.set(oldName, newName);
+  }
+
+  return changes;
+};
+
+const escapeRegExp = (value: string) => value.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+export const replaceEndpointResultNames = <T>(value: T, changes: Map<string, string>): T => {
+  if (changes.size === 0) return value;
+
+  const alternatives = [...changes.keys()].sort((a, b) => b.length - a.length).map(escapeRegExp);
+  const pattern = new RegExp(`(?<![A-Za-z0-9_])(${alternatives.join('|')})(?![A-Za-z0-9_])`, 'g');
+
+  const replace = (current: unknown): unknown => {
+    if (typeof current === 'string') return current.replace(pattern, (match) => changes.get(match) ?? match);
+    if (Array.isArray(current)) return current.map(replace);
+    if (current && typeof current === 'object' && Object.getPrototypeOf(current) === Object.prototype) {
+      return Object.fromEntries(Object.entries(current).map(([key, val]) => [key, replace(val)]));
+    }
+    return current;
+  };
+
+  return replace(value) as T;
+};
+
 export const generateUniqueLabel = (originalLabel: string, existingNodes: Node[]): string => {
   const parts = originalLabel.split(' - ');
   const baseLabel = parts.length > 1 ? parts.slice(0, -1).join(' - ') : originalLabel;
 
-  const existingLabels = existingNodes
-    .map((node: any) => node.data?.label)
-    .filter((label) => label?.startsWith(baseLabel))
-    .map((label) => {
-      const labelParts = label.split(' - ');
-      if (labelParts.length > 1) {
-        const num = parseInt(labelParts[labelParts.length - 1] as string);
-        return isNaN(num) ? 0 : num;
-      }
-      return 0;
-    })
-    .sort((a, b) => a - b);
+  const existingNumbers = new Set(
+    existingNodes
+      .map((node: any) => node.data?.label)
+      .filter((label) => label?.startsWith(baseLabel))
+      .map(getLabelNumber),
+  );
 
   let nextNumber = 1;
-  for (const num of existingLabels) {
-    if (num === nextNumber) {
-      nextNumber++;
-    } else if (num > nextNumber) {
-      break;
-    }
+  while (existingNumbers.has(nextNumber) || isStepNameTaken(`${baseLabel} - ${nextNumber}`, existingNodes)) {
+    nextNumber++;
   }
 
   return `${baseLabel} - ${nextNumber}`;

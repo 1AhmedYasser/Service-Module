@@ -32,6 +32,7 @@ import {
   EndpointDefinition,
   EndpointEnv,
   EndpointTab,
+  EndpointVariableData,
   PreDefinedEndpointEnvVariables,
 } from 'types/endpoint';
 import { EndpointResponseVariable } from 'types/endpoint/endpoint-response-variables';
@@ -42,7 +43,8 @@ import {
   RequestVariablesTabsRowsData,
 } from 'types/request-variables';
 import { initialEdges, initialNodes, NodeDataProps } from 'types/service-flow';
-import { validateFlowCompleteness } from 'utils/flow-completeness';
+import { getFlowCompletenessMessageKeys, validateFlowCompleteness } from 'utils/flow-completeness';
+import { getEndpointResultName, getEndpointResultNameChanges, replaceEndpointResultNames } from 'utils/flow-utils';
 import { formatSchema } from 'utils/json-request-utils';
 import { v4 as uuid } from 'uuid';
 import { create } from 'zustand';
@@ -88,7 +90,7 @@ export interface ServiceStoreState {
   slot: string;
   examples: string[];
   entities: string[];
-  isCommon: boolean;
+  discoverable: boolean;
   edges: Edge[];
   // In the future, this needs to use a common interface with NodeDataProps and not Node
   nodes: Node[];
@@ -113,7 +115,6 @@ export interface ServiceStoreState {
   setEdges: (edges: Edge[] | ((prev: Edge[]) => Edge[])) => void;
   setFlowSelectedNodes: (nodes: Node[]) => void;
   vaildServiceInfo: () => boolean;
-  setIsCommon: (isCommon: boolean) => void;
   secrets: PreDefinedEndpointEnvVariables;
   availableVariables: PreDefinedEndpointEnvVariables;
   isTestButtonVisible: boolean;
@@ -125,6 +126,7 @@ export interface ServiceStoreState {
   setSlot: (slot: string) => void;
   setExamples: (examples: string[]) => void;
   setEntities: (entities: string[]) => void;
+  setDiscoverable: (discoverable: boolean) => void;
   setStepPreferences: (stepPreferences: string[]) => void;
   loadEndpointsResponseVariables: () => void;
   setSecrets: (newSecrets: PreDefinedEndpointEnvVariables) => void;
@@ -254,13 +256,13 @@ const useServiceStore = create<ServiceStoreState>((set, get) => ({
   slot: '',
   examples: [],
   entities: [],
+  discoverable: false,
   serviceId: uuid(),
   description: '',
   edges: initialEdges,
   nodes: initialNodes,
   flowSelectedNodes: [],
   isNewService: true,
-  isCommon: false,
   serviceState: undefined,
   isTestButtonVisible: false,
   isTestButtonEnabled: true,
@@ -288,7 +290,6 @@ const useServiceStore = create<ServiceStoreState>((set, get) => ({
       isTestButtonVisible: true,
     }),
   isSaveButtonEnabled: () => get().endpoints.length > 0,
-  setIsCommon: (value: boolean) => set({ isCommon: value }),
   markAsNewService: () => set({ isNewService: true }),
   unmarkAsNewService: () => set({ isNewService: false }),
   setServiceId: (id) => set({ serviceId: id }),
@@ -337,15 +338,17 @@ const useServiceStore = create<ServiceStoreState>((set, get) => ({
       });
 
       const variables: EndpointResponseVariable[] = [];
+      const allNodes = instance.getNodes();
 
       response.data.response.forEach((res, i) => {
         const endpoint = endpointsFromNodes[i];
+        const resultName = getEndpointResultName(endpointNodes[i], allNodes);
         const chips: Chip[] = [];
 
-        for (const [key, value] of Object.entries(res)) {
+        for (const [key, value] of Object.entries(res ?? {})) {
           chips.push({
             name: key,
-            value: `${endpoint?.name.replace(' ', '_')}_res.response.body.${key}`,
+            value: `${resultName}.response.body.${key}`,
             data: value,
           });
         }
@@ -353,25 +356,26 @@ const useServiceStore = create<ServiceStoreState>((set, get) => ({
         chips.push(
           {
             name: 'Base Response',
-            value: `${endpoint?.name.replaceAll(' ', '_')}_res.response.body`,
-            data: `${endpoint?.name.replaceAll(' ', '_')}_res.response.body`,
+            value: `${resultName}.response.body`,
+            data: `${resultName}.response.body`,
           },
           {
             name: 'Status Code',
-            value: `${endpoint?.name.replaceAll(' ', '_')}_res.response.statusCodeValue`,
-            data: `${endpoint?.name.replaceAll(' ', '_')}_res.response.statusCodeValue`,
+            value: `${resultName}.response.statusCodeValue`,
+            data: `${resultName}.response.statusCodeValue`,
           },
         );
 
         const variable: EndpointResponseVariable = {
           name: endpoint?.name ?? '',
+          nodeId: endpointNodes[i].id,
           chips: chips,
         };
 
         variables.push(variable);
       });
 
-      const uniqueVariables = Array.from(new Map(variables.map((variable) => [variable.name, variable])).values());
+      const uniqueVariables = Array.from(new Map(variables.map((variable) => [variable.nodeId, variable])).values());
 
       set({ endpointsResponseVariables: uniqueVariables });
     } catch (e) {
@@ -392,6 +396,7 @@ const useServiceStore = create<ServiceStoreState>((set, get) => ({
   setSlot: (slot: string) => set({ slot }),
   setExamples: (examples: string[]) => set({ examples: examples }),
   setEntities: (entities: string[]) => set({ entities: entities }),
+  setDiscoverable: (discoverable: boolean) => set({ discoverable }),
   setStepPreferences: (stepPreferences: string[]) => set({ stepPreferences }),
   setSecrets: (newSecrets: PreDefinedEndpointEnvVariables) => set({ secrets: newSecrets }),
   addProductionVariables: (variables: any) => {
@@ -436,9 +441,9 @@ const useServiceStore = create<ServiceStoreState>((set, get) => ({
       slot: '',
       examples: [],
       entities: [],
+      discoverable: false,
       secrets: { prod: [], test: [] },
       availableVariables: { prod: [], test: [] },
-      isCommon: false,
       reactFlowInstance: null,
       selectedTab: EndpointEnv.Live,
       isNewService: true,
@@ -522,12 +527,12 @@ const useServiceStore = create<ServiceStoreState>((set, get) => ({
 
       set({
         serviceId: id,
-        name: settings?.title ?? serviceResponse.data.name,
-        isCommon: serviceResponse.data.isCommon,
+        name: serviceResponse.data.name,
         description: settings?.description ?? serviceResponse.data.description,
         slot: serviceResponse.data.slot,
         examples: settings?.examples ?? serviceResponse.data.examples,
         entities: settings?.keywords ?? serviceResponse.data.entities,
+        discoverable: serviceResponse.data.discoverable ?? false,
         edges,
         nodes,
         endpoints,
@@ -742,16 +747,13 @@ const useServiceStore = create<ServiceStoreState>((set, get) => ({
 
     if (!completeness.isComplete) {
       const title = i18next.t('newService.toast.incompleteFlow');
-
-      if (completeness.unconnectedNodeIds.size > 0) {
-        useToastStore.getState().error({ title, message: i18next.t('newService.toast.unconnectedServiceBlocks') });
-      }
-      if (completeness.unfinishedEdgeIds.size > 0) {
-        useToastStore.getState().error({ title, message: i18next.t('newService.toast.unfinishedFlows') });
-      }
-      if (completeness.unresolvedJumpToServiceNodeIds.size > 0) {
-        useToastStore.getState().error({ title, message: i18next.t('newService.toast.unresolvedJumpToService') });
-      }
+      const unresolvedReferenceLabels = nodes
+        .filter((node) => completeness.unresolvedEndpointReferenceNodeIds.has(node.id))
+        .map((node) => node.data.label)
+        .join(', ');
+      getFlowCompletenessMessageKeys(completeness).forEach((key) => {
+        useToastStore.getState().error({ title, message: i18next.t(key, { nodes: unresolvedReferenceLabels }) });
+      });
 
       throw new Error(i18next.t('newService.toast.incompleteFlow') ?? 'Error');
     }
@@ -823,8 +825,8 @@ const useServiceStore = create<ServiceStoreState>((set, get) => ({
     get().resetSelectedNode();
     if (selectedNode?.data.stepType === StepType.FinishingStepEnd) return;
 
-    get().setNodes((prevNodes) =>
-      prevNodes.map((prevNode) => {
+    get().setNodes((prevNodes) => {
+      const nextNodes = prevNodes.map((prevNode) => {
         if (prevNode.id !== selectedNode!.id) return prevNode;
         if (
           prevNode.data.message != updatedNode.data.message ||
@@ -860,8 +862,12 @@ const useServiceStore = create<ServiceStoreState>((set, get) => ({
             childrenCount: updatedNode.data.childrenCount ?? prevNode.data.childrenCount,
           },
         };
-      }),
-    );
+      });
+
+      const resultNameChanges = getEndpointResultNameChanges(prevNodes, nextNodes);
+      if (resultNameChanges.size === 0) return nextNodes;
+      return nextNodes.map((n) => ({ ...n, data: replaceEndpointResultNames(n.data, resultNameChanges) }));
+    });
 
     get().saveToHistory();
   },
@@ -915,15 +921,11 @@ const useServiceStore = create<ServiceStoreState>((set, get) => ({
   saveToHistory: (stateOverride?: { nodes: Node[]; edges: Edge[] }) => {
     const { nodes, edges, history, historyIndex } = get();
 
-    const currentState = stateOverride
-      ? {
-          nodes: JSON.parse(JSON.stringify(stateOverride.nodes)),
-          edges: JSON.parse(JSON.stringify(stateOverride.edges)),
-        }
-      : {
-          nodes: JSON.parse(JSON.stringify(nodes)),
-          edges: JSON.parse(JSON.stringify(edges)),
-        };
+    const snapshot = stateOverride ?? { nodes, edges };
+    const currentState = {
+      nodes: JSON.parse(JSON.stringify(snapshot.nodes.map(omitSelected))),
+      edges: JSON.parse(JSON.stringify(snapshot.edges.map(omitSelected))),
+    };
 
     const lastState = history[historyIndex];
 
@@ -1007,14 +1009,23 @@ const useServiceStore = create<ServiceStoreState>((set, get) => ({
   canRedo: () => get().historyIndex < get().history.length - 1,
 }));
 
+const UNRESOLVED_PLACEHOLDER_REGEX = /(?<!\$)\{([^{}]+)\}/g;
+
+export function findUnresolvedPathPlaceholder(url: string): string | undefined {
+  return [...url.split('?')[0].matchAll(UNRESOLVED_PLACEHOLDER_REGEX)][0]?.[1];
+}
+
 export function buildExplainRequest(endpoint: EndpointDefinition) {
   let url = endpoint.url || '';
   const allParams = endpoint.params?.variables ?? [];
-  const pathParams = allParams.filter((p) => p.paramType === 'path');
-  const queryParams = allParams.filter((p) => p.paramType !== 'path');
+  const placeholderNames = new Set([...url.split('?')[0].matchAll(UNRESOLVED_PLACEHOLDER_REGEX)].map((m) => m[1]));
+  const isPathParam = (p: EndpointVariableData) =>
+    p.paramType === 'path' || p.in === 'path' || placeholderNames.has(p.name);
+  const pathParams = allParams.filter(isPathParam);
+  const queryParams = allParams.filter((p) => !isPathParam(p));
   for (const param of pathParams) {
     if (param.value?.trim()) {
-      url = url.split(`{${param.name}}`).join(encodeURIComponent(param.value));
+      url = url.split(`{${param.name}}`).join(param.value);
     }
   }
   const queryOnlyParams = endpoint.params ? { ...endpoint.params, variables: queryParams } : undefined;

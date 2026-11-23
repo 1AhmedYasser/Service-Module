@@ -29,6 +29,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 12px;
   border: 1px solid #d2d3d8;
   box-shadow: 0 4px 4px 0 #00000040;
 }
@@ -38,6 +39,7 @@
   font-family: inherit;
   color: inherit;
   position: relative;
+  min-width: 0;
 
   &:hover,
   &:focus {
@@ -49,6 +51,10 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.naming--trigger .service-status-chip {
+  flex-shrink: 0;
 }
 
 .naming__chevron {
@@ -70,19 +76,29 @@
   padding: 6px;
 
   &__item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
     padding: 10px 12px;
     border-radius: 6px;
     cursor: pointer;
     font-size: 16px;
     outline: none;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+
+    .service-status-chip {
+      flex-shrink: 0;
+    }
 
     &:hover,
     &[data-highlighted] {
       background-color: get-color(black-coral-0);
     }
+  }
+
+  &__name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   &__empty {
@@ -110,6 +126,22 @@
       background-color: var(--dark-bg-extra-light);
     }
   }
+}
+
+.unsaved-changes-dot {
+  position: absolute;
+  top: 8px;
+  right: 14px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: get-color(jasper-10);
+  border: 0.5px solid get-color(white);
+  pointer-events: none;
+}
+
+[data-theme='dark'] .unsaved-changes-dot {
+  border-color: var(--dark-bg-main);
 }
 
 .icon_button {
