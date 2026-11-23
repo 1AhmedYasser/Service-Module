@@ -65,7 +65,7 @@ export async function persistEndpoints(endpoints: EndpointData[], serviceId: str
       tasks.push(
         api
           .post(updateEndpoint(endpoint.endpointId), {
-            ...endpoint,
+            ...payload,
             serviceId,
             description: endpoint.description ?? '',
             definitions: JSON.stringify(endpoint.definitions),
