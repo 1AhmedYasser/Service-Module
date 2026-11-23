@@ -68,7 +68,14 @@
     "cut": "Lõika",
     "undo": "Võta tagasi",
     "redo": "Taasta",
-    "retry": "Proovi uuesti"
+    "retry": "Proovi uuesti",
+    "indexFailure": {
+      "llmUnreachable": "LLM-moodul ei ole kättesaadav. Palun proovige hiljem uuesti.",
+      "submissionFailed": "LLM-moodulile saatmine ebaõnnestus (HTTP {{status}}).",
+      "timedOut": "Indekseerimine aegus {{minutes}} minuti järel.",
+      "outdated": "Indekseeritud sisu kirjutati üle vanema katsega. Palun indekseerige uuesti.",
+      "generic": "Tekkis ootamatu viga. Palun proovige hiljem uuesti."
+    }
   },
   "menu": {
     "overview": "Ülevaade",

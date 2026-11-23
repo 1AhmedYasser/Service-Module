@@ -10,6 +10,7 @@ import {
 import api from 'services/api-dev';
 import { extractMapValues, getEndpointBody } from 'store/new-services.store';
 import { EndpointData } from 'types/endpoint';
+import { translateIndexFailureReason } from 'utils/index-failure-reason';
 import { formatSchema } from 'utils/json-request-utils';
 import { v4 as uuid } from 'uuid';
 import { create } from 'zustand';
@@ -71,7 +72,7 @@ const announceNewIndexFailures = (previous: EndpointData[], next: EndpointData[]
     announcedIndexFailures.add(key);
     useToastStore.getState().error({
       title: t('apiRegistry.indexFailed', { name: endpoint.name }),
-      message: endpoint.llm_index_failure_reason ?? undefined,
+      message: translateIndexFailureReason(endpoint.llm_index_failure_reason, t),
     });
   }
 };

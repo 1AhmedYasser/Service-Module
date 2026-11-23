@@ -19,6 +19,7 @@ import {
 } from 'react-icons/md';
 import { VerificationMetadata } from 'store/api-registry.store';
 import { EndpointData } from 'types/endpoint';
+import { translateIndexFailureReason } from 'utils/index-failure-reason';
 
 import { formatLastTest } from './columns';
 
@@ -400,8 +401,9 @@ const ApiRegistryTable: React.FC<ApiRegistryTableProps> = ({
                         );
                         if (endpoint.llm_index_status !== 'FAILED') return reIndexButton;
                         // Hovering the indexing button on a failed row shows the latest failure reason
-                        const failureText = endpoint.llm_index_failure_reason
-                          ? t('apiRegistry.indexFailureReason', { reason: endpoint.llm_index_failure_reason })
+                        const failureReason = translateIndexFailureReason(endpoint.llm_index_failure_reason, t);
+                        const failureText = failureReason
+                          ? t('apiRegistry.indexFailureReason', { reason: failureReason })
                           : t('apiRegistry.indexFailureUnknown');
                         return (
                           <Tooltip content={failureText}>

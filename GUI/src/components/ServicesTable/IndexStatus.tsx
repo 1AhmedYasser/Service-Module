@@ -3,6 +3,7 @@ import { FC, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MdCheck, MdClose } from 'react-icons/md';
 import { ServiceIndexStatus } from 'types/service';
+import { translateIndexFailureReason } from 'utils/index-failure-reason';
 
 import { ReactComponent as RefreshIcon } from '../../static/icons/referesh.svg';
 import Tooltip from '../Tooltip';
@@ -53,8 +54,9 @@ const IndexStatus: FC<IndexStatusProps> = ({ status, failureReason, canReindex, 
   );
 
   // Hovering the indexing button on a failed row shows the latest failure reason
-  const failureText = failureReason
-    ? t('overview.index.failureReason', { reason: failureReason })
+  const translatedReason = translateIndexFailureReason(failureReason, t);
+  const failureText = translatedReason
+    ? t('overview.index.failureReason', { reason: translatedReason })
     : t('overview.index.failureUnknown');
 
   return (

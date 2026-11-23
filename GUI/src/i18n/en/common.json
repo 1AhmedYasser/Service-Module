@@ -68,7 +68,14 @@
     "cut": "Cut",
     "undo": "Undo",
     "redo": "Redo",
-    "retry": "Retry"
+    "retry": "Retry",
+    "indexFailure": {
+      "llmUnreachable": "LLM module is not reachable. Please try again later.",
+      "submissionFailed": "Submission to LLM module failed (HTTP {{status}}).",
+      "timedOut": "Indexing timed out after {{minutes}} minutes.",
+      "outdated": "Indexed content was overwritten by an older attempt. Please reindex.",
+      "generic": "An unexpected error occurred. Please try again later."
+    }
   },
   "menu": {
     "overview": "Overview",

@@ -17,6 +17,7 @@ import { Service, ServiceState } from 'types';
 import { ActivationBlocker } from 'types/activation-blocker';
 import { ServiceDependency, ServiceLocation } from 'types/service-dependency';
 import { FlowCompletenessResult, validateFlowCompleteness } from 'utils/flow-completeness';
+import { translateIndexFailureReason } from 'utils/index-failure-reason';
 import { findActivationBlockers, ServiceFlowLookup } from 'utils/service-activation';
 import { AffectedService, findAffectedActiveServices } from 'utils/service-draft-return';
 import { create } from 'zustand';
@@ -94,7 +95,7 @@ const announceNewIndexFailures = (previous: Service[], next: Service[]): void =>
     announcedIndexFailures.add(key);
     useToastStore.getState().error({
       title: i18n.t('overview.index.toast.indexFailed', { name: service.name }),
-      message: service.indexFailureReason ?? undefined,
+      message: translateIndexFailureReason(service.indexFailureReason, i18n.t),
     });
   }
 };
