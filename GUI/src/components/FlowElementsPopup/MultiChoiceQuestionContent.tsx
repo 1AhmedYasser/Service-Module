@@ -17,7 +17,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import FormError from 'components/FormElements/FormError';
-import { FC, ReactNode, useRef, useState } from 'react';
+import { FC, PropsWithChildren, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MdCheck, MdDeleteOutline, MdDragIndicator, MdEdit } from 'react-icons/md';
 import ReactQuill from 'react-quill-new';
@@ -36,7 +36,11 @@ import './styles.scss';
 
 const maxButtons = Number.parseInt((import.meta.env.REACT_APP_MULTI_CHOICE_QUESTION_MAX_BUTTONS as string) ?? '4');
 
-const SortableButtonRow: FC<{ id: string; dragLabel: string; children: ReactNode }> = ({ id, dragLabel, children }) => {
+const SortableButtonRow: FC<Readonly<PropsWithChildren<{ id: string; dragLabel: string }>>> = ({
+  id,
+  dragLabel,
+  children,
+}) => {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
     id,
   });
