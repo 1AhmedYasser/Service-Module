@@ -380,14 +380,35 @@ const ApiRegistryTable: React.FC<ApiRegistryTableProps> = ({
                           {isTesting ? t('global.loading') : t('apiRegistry.actions.test')}
                         </Track>
                       </Button>
-                      <Button appearance="text" size="s" onClick={() => onReIndex?.(endpoint)}>
-                        <Track gap={4} align="center">
-                          <span style={{ color: '#000' }}>
-                            <MdRefresh />
-                          </span>
-                          {t('apiRegistry.actions.reIndex') ?? 'Re-Index'}
-                        </Track>
-                      </Button>
+                      {(() => {
+                        const isIndexing = endpoint.llm_index_status === 'IN_PROGRESS';
+                        const reIndexButton = (
+                          <Button
+                            appearance="text"
+                            size="s"
+                            onClick={() => onReIndex?.(endpoint)}
+                            disabled={isIndexing}
+                            style={isIndexing ? { opacity: 0.7 } : undefined}
+                          >
+                            <Track gap={4} align="center">
+                              <span style={{ color: '#000' }}>
+                                <MdRefresh />
+                              </span>
+                              {t('apiRegistry.actions.reIndex') ?? 'Re-Index'}
+                            </Track>
+                          </Button>
+                        );
+                        if (endpoint.llm_index_status !== 'FAILED') return reIndexButton;
+                        // Hovering the indexing button on a failed row shows the latest failure reason
+                        const failureText = endpoint.llm_index_failure_reason
+                          ? t('apiRegistry.indexFailureReason', { reason: endpoint.llm_index_failure_reason })
+                          : t('apiRegistry.indexFailureUnknown');
+                        return (
+                          <Tooltip content={failureText}>
+                            <span style={{ display: 'inline-flex' }}>{reIndexButton}</span>
+                          </Tooltip>
+                        );
+                      })()}
                       <Button appearance="text" size="s" onClick={() => onEdit(endpoint)}>
                         <Track gap={4} align="center">
                           <span style={{ color: '#000' }}>

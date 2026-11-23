@@ -131,6 +131,7 @@ export const getColumns = ({
       cell: (props) => (
         <IndexStatus
           status={props.row.original.indexStatus}
+          failureReason={props.row.original.indexFailureReason}
           canReindex={props.row.original.state === ServiceState.Active}
           onReindex={() => onReindex(props.row.original)}
         />

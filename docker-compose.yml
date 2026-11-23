@@ -16,7 +16,7 @@ services:
       - application.internalRequests.disabled=true
       - application.internalRequests.allowedIPs=127.0.0.1
       - application.apiRequestTestingKey=voorshpellhappilo
-      - application.externalAuthAllowed=services/active/*,services/draft/*,services/inactive/*
+      - application.externalAuthAllowed=services/active/*,services/draft/*,services/inactive/*,llm/index-callback
     volumes:
       - ./DSL/Ruuter:/DSL
       - ./constants.ini:/app/constants.ini

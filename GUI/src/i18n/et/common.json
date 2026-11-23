@@ -301,7 +301,16 @@
       },
       "toast": {
         "started": "Indekseerimine algas",
-        "failed": "Indekseerimine ebaõnnestus"
+        "failed": "Indekseerimine ebaõnnestus",
+        "indexFailed": "Indekseerimine ebaõnnestus: {{name}}"
+      },
+      "failureReason": "Viimane indekseerimine ebaõnnestus: {{reason}}",
+      "failureUnknown": "Viimane indekseerimine ebaõnnestus",
+      "validation": {
+        "VALIDATION_NAME_MISSING": "Indekseerimiseks on vaja teenuse nime.",
+        "VALIDATION_DESCRIPTION_MISSING": "Indekseerimiseks on vaja teenuse kirjeldust.",
+        "VALIDATION_SERVICE_NOT_ACTIVE": "Indekseerida saab ainult aktiivseid teenuseid.",
+        "VALIDATION_SERVICE_NOT_DISCOVERABLE": "Indekseerida saab ainult leitavaid teenuseid."
       }
     },
     "pin": {
@@ -888,6 +897,15 @@
     "testSuccess": "Test õnnestus",
     "testError": "Test ebaõnnestus",
     "reIndexSuccess": "Indekseerimine algas",
-    "reIndexError": "Indekseerimine ebaõnnestus"
+    "reIndexError": "Indekseerimine ebaõnnestus",
+    "indexFailed": "Indekseerimine ebaõnnestus: {{name}}",
+    "indexFailureReason": "Viimane indekseerimine ebaõnnestus: {{reason}}",
+    "indexFailureUnknown": "Viimane indekseerimine ebaõnnestus",
+    "indexValidation": {
+      "VALIDATION_NAME_MISSING": "Indekseerimiseks on vaja otspunkti nime.",
+      "VALIDATION_DESCRIPTION_MISSING": "Indekseerimiseks on vaja API kirjeldust.",
+      "VALIDATION_URL_MISSING": "Indekseerimiseks on vaja valitud otspunkti URL-i.",
+      "VALIDATION_METHOD_MISSING": "Indekseerimiseks on vaja valitud HTTP meetodit."
+    }
   }
 }

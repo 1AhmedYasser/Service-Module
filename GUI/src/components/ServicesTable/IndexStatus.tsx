@@ -5,9 +5,11 @@ import { MdCheck, MdClose } from 'react-icons/md';
 import { ServiceIndexStatus } from 'types/service';
 
 import { ReactComponent as RefreshIcon } from '../../static/icons/referesh.svg';
+import Tooltip from '../Tooltip';
 
 type IndexStatusProps = {
   readonly status?: ServiceIndexStatus | null;
+  readonly failureReason?: string | null;
   readonly canReindex: boolean;
   readonly onReindex?: () => void;
 };
@@ -34,22 +36,37 @@ const IndexStatusIcon: FC<{ readonly status?: ServiceIndexStatus | null }> = ({ 
   );
 };
 
-const IndexStatus: FC<IndexStatusProps> = ({ status, canReindex, onReindex }) => {
+const IndexStatus: FC<IndexStatusProps> = ({ status, failureReason, canReindex, onReindex }) => {
   const { t } = useTranslation();
+
+  const reindexButton = (
+    <button
+      type="button"
+      className={clsx('services-table__text-action', 'index-status__reindex')}
+      disabled={!canReindex || status === 'IN_PROGRESS'}
+      title={canReindex ? undefined : (t('overview.index.reindexOnlyActive') ?? '')}
+      onClick={onReindex}
+    >
+      <RefreshIcon className="index-status__reindex-icon" aria-hidden />
+      {t('overview.index.reindex')}
+    </button>
+  );
+
+  // Hovering the indexing button on a failed row shows the latest failure reason
+  const failureText = failureReason
+    ? t('overview.index.failureReason', { reason: failureReason })
+    : t('overview.index.failureUnknown');
 
   return (
     <span className="index-status">
       <IndexStatusIcon status={status} />
-      <button
-        type="button"
-        className={clsx('services-table__text-action', 'index-status__reindex')}
-        disabled={!canReindex || status === 'IN_PROGRESS'}
-        title={canReindex ? undefined : (t('overview.index.reindexOnlyActive') ?? '')}
-        onClick={onReindex}
-      >
-        <RefreshIcon className="index-status__reindex-icon" aria-hidden />
-        {t('overview.index.reindex')}
-      </button>
+      {status === 'FAILED' ? (
+        <Tooltip content={failureText}>
+          <span style={{ display: 'inline-flex' }}>{reindexButton}</span>
+        </Tooltip>
+      ) : (
+        reindexButton
+      )}
     </span>
   );
 };

@@ -49,6 +49,8 @@ const useTabCloseEffect = () => {
   useEffect(() => {
     if (isLocal) return;
 
+    void makeCall(baseUrl, 'cancel');
+
     const timeout = setTimeout(() => {
       return makeCall(baseUrl, 'cancel');
     }, 2500);

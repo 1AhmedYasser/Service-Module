@@ -13,4 +13,6 @@ export type EndpointData = {
   definitions: EndpointDefinition[];
   responseSchema?: string;
   llm_index_status?: 'SUCCESS' | 'FAILED' | 'IN_PROGRESS' | null;
+  llm_index_failure_reason?: string | null;
+  llm_index_attempt_no?: number | null;
 };

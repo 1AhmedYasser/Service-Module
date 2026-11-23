@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.8.xsd">
+
+    <changeSet id="20261105120000" author="ruwiniRathnamalala">
+        <sqlFile path="changelog/migrations/20261105120000_add-llm-index-attempt-to-services.sql" splitStatements="false" />
+        <rollback>
+            <sqlFile path="changelog/migrations/rollback/20261105120000_add-llm-index-attempt-to-services_rollback.sql" />
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

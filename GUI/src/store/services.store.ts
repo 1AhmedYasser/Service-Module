@@ -68,6 +68,37 @@ const toSortingParam = (sorting: SortingState): string => {
   return `${sorting[0].id} ${order}`;
 };
 
+/** Shows the toast for a service indexing validation error code returned by the backend (e.g. VALIDATION_DESCRIPTION_MISSING). */
+export const showServiceIndexValidationToast = (code: string): void => {
+  useToastStore.getState().error({
+    title: i18n.t(`overview.index.validation.${code}`, { defaultValue: i18n.t('overview.index.toast.failed') }),
+  });
+};
+
+// Attempts whose failure was already announced in this session, keyed by `${serviceId}:${attemptNo}`.
+// Ensures each new failure produces exactly one toast, and reloads never re-announce existing failures.
+const announcedIndexFailures = new Set<string>();
+
+// A failure is "new" when the row was seen before on this page and either was IN_PROGRESS,
+// or a newer attempt has failed already (e.g. submission failed during activation). Rows seen for the
+// first time (initial load, reload, other page) are never announced.
+const announceNewIndexFailures = (previous: Service[], next: Service[]): void => {
+  const previousById = new Map(previous.map((service) => [service.serviceId, service]));
+  for (const service of next) {
+    const before = previousById.get(service.serviceId);
+    if (service.indexStatus !== 'FAILED' || !before) continue;
+    const isNewAttempt = (service.indexAttemptNo ?? 0) > (before.indexAttemptNo ?? 0);
+    if (before.indexStatus !== 'IN_PROGRESS' && !isNewAttempt) continue;
+    const key = `${service.serviceId}:${service.indexAttemptNo ?? ''}`;
+    if (announcedIndexFailures.has(key)) continue;
+    announcedIndexFailures.add(key);
+    useToastStore.getState().error({
+      title: i18n.t('overview.index.toast.indexFailed', { name: service.name }),
+      message: service.indexFailureReason ?? undefined,
+    });
+  }
+};
+
 const mapService = (item: any, isPinned: boolean): Service => ({
   id: item.id,
   name: item.name,
@@ -81,6 +112,8 @@ const mapService = (item: any, isPinned: boolean): Service => ({
   totalPages: item.totalPages ?? 1,
   totalCount: item.totalCount ?? 0,
   indexStatus: item.indexStatus ?? null,
+  indexFailureReason: item.indexFailureReason ?? null,
+  indexAttemptNo: item.indexAttemptNo ?? null,
   incomingCount: item.incomingCount ?? 0,
   outgoingCount: item.outgoingCount ?? 0,
   problemCount: item.problemCount ?? 0,
@@ -107,7 +140,7 @@ interface ServiceStoreState {
     pagination: PaginationState,
     sorting: SortingState,
     filters?: ServicesFilters,
-    options?: { keepOrder?: boolean },
+    options?: { keepOrder?: boolean; silent?: boolean },
   ) => Promise<void>;
   togglePinService: (service: Service) => Promise<void>;
   loadServiceDependencies: (serviceId: string) => Promise<ServiceDependency[]>;
@@ -158,8 +191,11 @@ const useServiceListStore = create<ServiceStoreState>()(
         })),
       loadServicesList: async (pagination, sorting, filters = get().servicesFilters, options = {}) => {
         const requestId = ++latestServicesRequestId;
-        if (get().servicesLoadState === 'success') set({ isRefreshingServices: true });
-        else set({ servicesLoadState: 'loading' });
+        // Silent loads (indexing status polling) don't show the refreshing indicator.
+        if (!options.silent) {
+          if (get().servicesLoadState === 'success') set({ isRefreshingServices: true });
+          else set({ servicesLoadState: 'loading' });
+        }
 
         let result;
         try {
@@ -180,6 +216,7 @@ const useServiceListStore = create<ServiceStoreState>()(
         const response = result.data.response ?? {};
         const services: Service[] = (response.services ?? []).map((item: any) => mapService(item, false));
         const pinnedServices: Service[] = (response.pinned ?? []).map((item: any) => mapService(item, true));
+        announceNewIndexFailures([...get().pinnedServices, ...get().services], [...pinnedServices, ...services]);
 
         if (options.keepOrder) {
           const freshById = new Map([...pinnedServices, ...services].map((service) => [service.serviceId, service]));
@@ -287,7 +324,14 @@ const useServiceListStore = create<ServiceStoreState>()(
         findAffectedActiveServices(serviceId, get().loadServiceDependencies),
       changeServiceState: async (service, state) => {
         try {
-          await api.post(changeServiceStatus(), { id: service.serviceId, state, type: service.type ?? 'POST' });
+          const result = await api.post(changeServiceStatus(), {
+            id: service.serviceId,
+            state,
+            type: service.type ?? 'POST',
+          });
+          // Activation never fails because of indexing; a validation warning (e.g. missing description) is shown as a toast.
+          const indexWarning: string | undefined = result.data?.response?.indexWarning ?? undefined;
+          if (indexWarning) showServiceIndexValidationToast(indexWarning);
         } catch (error) {
           console.error(error);
           useToastStore.getState().error({ title: i18n.t('overview.service.toast.failed.state') });
@@ -307,25 +351,47 @@ const useServiceListStore = create<ServiceStoreState>()(
           .catch(console.error);
       },
       reindexService: async (service) => {
-        const markInProgress = (item: Service): Service =>
-          item.serviceId === service.serviceId ? { ...item, indexStatus: 'IN_PROGRESS' } : item;
-        set({
-          services: get().services.map(markInProgress),
-          pinnedServices: get().pinnedServices.map(markInProgress),
-        });
-
+        let requestFailed = false;
         try {
           await api.post(reindexServiceApi(), { serviceId: service.serviceId });
-          useToastStore.getState().success({ title: i18n.t('overview.index.toast.started') });
-        } catch (error) {
+        } catch (error: any) {
+          // Validation errors (e.g. missing description) keep the existing indexing status.
+          const validationCode: string | undefined =
+            error?.response?.status === 400 ? error.response.data?.response?.code : undefined;
+          if (validationCode) {
+            showServiceIndexValidationToast(validationCode);
+            return;
+          }
           console.error(error);
-          useToastStore.getState().error({ title: i18n.t('overview.index.toast.failed') });
+          requestFailed = true;
+        }
+
+        if (!requestFailed) {
+          // Show Processing right away; the real result arrives through polling.
+          const markInProgress = (item: Service): Service =>
+            item.serviceId === service.serviceId ? { ...item, indexStatus: 'IN_PROGRESS' } : item;
+          set({
+            services: get().services.map(markInProgress),
+            pinnedServices: get().pinnedServices.map(markInProgress),
+          });
+          useToastStore.getState().success({ title: i18n.t('overview.index.toast.started') });
         }
 
         const { servicesPagination, servicesSorting } = get();
         await get()
-          .loadServicesList(servicesPagination, servicesSorting, undefined, { keepOrder: true })
+          .loadServicesList(servicesPagination, servicesSorting, undefined, { keepOrder: true, silent: true })
           .catch(console.error);
+
+        // A submission failure is announced by the failure toast once the row turns FAILED;
+        // only show the generic error when the request failed without that.
+        if (requestFailed) {
+          const current = [...get().pinnedServices, ...get().services].find(
+            (item) => item.serviceId === service.serviceId,
+          );
+          if (current?.indexStatus !== 'FAILED') {
+            useToastStore.getState().error({ title: i18n.t('overview.index.toast.failed') });
+          }
+        }
       },
       deleteSelectedService: async (onEnd, successMessage, errorMessage) => {
         const selectedService = get().selectedService;

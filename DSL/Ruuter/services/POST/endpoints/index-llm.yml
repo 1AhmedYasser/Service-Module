@@ -1,7 +1,7 @@
 declaration:
   call: declare
   version: 0.1
-  description: "Triggers LLM api-tools RAG indexing for an endpoint. Used by create/update flows and manual re-index."
+  description: "Starts an LLM api-tools indexing attempt for an endpoint. Used by create/update flows and manual re-index. Returns 202 when the job is queued; the final result arrives later via llm/index-callback."
   method: post
   accepts: json
   returns: json
@@ -36,29 +36,79 @@ fetch_endpoint:
 check_endpoint_found:
   switch:
     - condition: ${endpoint_result.response.body == null || endpoint_result.response.body.length === 0}
-      next: mark_failed_not_found
+      next: return_not_found
 
 assign_endpoint:
   assign:
     endpoint: ${endpoint_result.response.body[0]}
 
-assign_params:
-  assign:
-    llm_params: ${JSON.parse(endpoint.selectedParams ?? '[]')}
+# Validation runs before the attempt starts, so an invalid request keeps the existing indexing status.
+validate_metadata:
+  switch:
+    - condition: ${endpoint.name == null || String(endpoint.name).trim() === ''}
+      next: assign_name_missing
+    - condition: ${endpoint.description == null || String(endpoint.description).trim() === ''}
+      next: assign_description_missing
+    - condition: ${endpoint.selectedUrl == null || String(endpoint.selectedUrl).trim() === ''}
+      next: assign_url_missing
+    - condition: ${endpoint.selectedMethod == null || String(endpoint.selectedMethod).trim() === ''}
+      next: assign_method_missing
+  next: start_attempt
 
-mark_in_progress:
+assign_name_missing:
+  assign:
+    validation_error:
+      code: "VALIDATION_NAME_MISSING"
+      message: "Indexing needs an endpoint name"
+  next: log_validation_failure
+
+assign_description_missing:
+  assign:
+    validation_error:
+      code: "VALIDATION_DESCRIPTION_MISSING"
+      message: "Indexing needs an endpoint description"
+  next: log_validation_failure
+
+assign_url_missing:
+  assign:
+    validation_error:
+      code: "VALIDATION_URL_MISSING"
+      message: "Indexing needs a selected endpoint URL"
+  next: log_validation_failure
+
+assign_method_missing:
+  assign:
+    validation_error:
+      code: "VALIDATION_METHOD_MISSING"
+      message: "Indexing needs a selected HTTP method"
+  next: log_validation_failure
+
+log_validation_failure:
+  log: "LLM indexing not started for endpoint ${endpointId}: ${validation_error.code}"
+  next: return_validation_error
+
+start_attempt:
   call: http.post
   args:
-    url: "[#SERVICE_RESQL]/endpoints/update_endpoint_llm_sync_status"
+    url: "[#SERVICE_RESQL]/endpoints/start_endpoint_llm_index_attempt"
     body:
       endpointId: ${endpointId}
-      status: IN_PROGRESS
-  result: in_progress_res
+  result: start_res
+
+check_attempt_started:
+  switch:
+    - condition: ${start_res.response.body == null || start_res.response.body.length === 0}
+      next: return_not_found
+
+assign_attempt:
+  assign:
+    attemptNo: ${start_res.response.body[0].llmIndexAttemptNo}
+    llm_params: ${JSON.parse(endpoint.selectedParams ?? '[]')}
 
 call_llm_index:
   call: http.post
   args:
-    url: "[#LLM_RUUTER_PUBLIC]/api-tools/index"
+    url: "[#LLM_RUUTER_PRIVATE]/api-tools/index"
     body:
       endpointId: ${endpoint.endpointId ?? endpointId}
       name: ${endpoint.name}
@@ -66,56 +116,67 @@ call_llm_index:
       url: ${endpoint.selectedUrl}
       method: ${endpoint.selectedMethod}
       params: ${llm_params}
+      attemptNo: ${attemptNo}
   result: llm_result
 
 check_llm_result:
   switch:
     - condition: ${llm_result != null && llm_result.response != null && 200 <= llm_result.response.statusCodeValue && llm_result.response.statusCodeValue < 300 && llm_result.response.body.response.success === true}
-      next: mark_indexed
-  next: mark_failed_llm_call
+      next: log_submitted
+  next: assign_submission_failure
 
-mark_indexed:
+log_submitted:
+  log: "LLM indexing submitted for endpoint ${endpointId}, attempt ${attemptNo}"
+  next: assign_accepted_response
+
+assign_accepted_response:
+  assign:
+    accepted_response:
+      message: "Indexing started"
+      attemptNo: ${attemptNo}
+  next: return_accepted
+
+assign_submission_failure:
+  assign:
+    failureReason: "${'Submission to LLM module failed (HTTP ' + (llm_result != null && llm_result.response != null ? llm_result.response.statusCodeValue : 'unknown') + ')'}"
+
+mark_submission_failed:
   call: http.post
   args:
-    url: "[#SERVICE_RESQL]/endpoints/update_endpoint_llm_sync_status"
+    url: "[#SERVICE_RESQL]/endpoints/complete_endpoint_llm_index_attempt"
     body:
       endpointId: ${endpointId}
-      status: SUCCESS
-  result: update_res
-  next: return_ok
+      attemptNo: ${attemptNo}
+      status: "FAILED"
+      failureReason: ${failureReason}
+  result: mark_failed_res
 
-mark_failed_llm_call:
-  call: http.post
-  args:
-    url: "[#SERVICE_RESQL]/endpoints/update_endpoint_llm_sync_status"
-    body:
-      endpointId: ${endpointId}
-      status: FAILED
-  result: update_res
-  next: log_llm_failure
+log_submission_failure:
+  log: "LLM indexing failed for endpoint ${endpointId}, attempt ${attemptNo}: ${failureReason}"
+  next: assign_failed_response
 
-log_llm_failure:
-  log: "LLM indexing failed for endpoint ${endpointId}"
+assign_failed_response:
+  assign:
+    failed_response:
+      code: "SUBMISSION_FAILED"
+      message: ${failureReason}
   next: return_failed
 
-mark_failed_not_found:
-  call: http.post
-  args:
-    url: "[#SERVICE_RESQL]/endpoints/update_endpoint_llm_sync_status"
-    body:
-      endpointId: ${endpointId}
-      status: FAILED
-  result: update_res
-  next: return_not_found
+return_accepted:
+  status: 202
+  return: ${accepted_response}
+  next: end
 
-return_ok:
+# HTTP 200 on purpose: Ruuter drops the response body of non-2xx replies between flows,
+# so callers could not read the validation code. Callers detect it by the VALIDATION_ code.
+return_validation_error:
   status: 200
-  return: "Endpoint indexed successfully"
+  return: ${validation_error}
   next: end
 
 return_failed:
   status: 500
-  return: "LLM indexing failed"
+  return: ${failed_response}
   next: end
 
 return_not_found:

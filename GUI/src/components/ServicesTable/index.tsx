@@ -41,6 +41,7 @@ import './ServicesTable.scss';
 const DEFAULT_PAGE_SIZE = 20;
 const PAGE_SIZE_OPTIONS = [10, 20, 30, 50];
 const PAGE_SIZE_STORAGE_KEY = 'page-size';
+const INDEX_STATUS_POLL_INTERVAL_MS = 5000;
 
 const getStoredPageSize = (): number => {
   const stored = Number(localStorage.getItem(PAGE_SIZE_STORAGE_KEY));
@@ -88,6 +89,24 @@ const ServicesTable: FC = () => {
   useEffect(() => {
     loadServices();
   }, [loadServices]);
+
+  // Refresh indexing indicators automatically while any visible service is being indexed.
+  const hasIndexingInProgress = tableData.some((service) => service.indexStatus === 'IN_PROGRESS');
+  useEffect(() => {
+    if (!hasIndexingInProgress) return;
+    const timer = setInterval(() => {
+      const store = useServiceListStore.getState();
+      // Skip while a normal load runs, so polling never overrides a page/sort/filter change.
+      if (store.isRefreshingServices || store.servicesLoadState === 'loading') return;
+      store
+        .loadServicesList(store.servicesPagination, store.servicesSorting, store.servicesFilters, {
+          keepOrder: true,
+          silent: true,
+        })
+        .catch(console.error);
+    }, INDEX_STATUS_POLL_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [hasIndexingInProgress]);
 
   const showSkeleton = useDelayedFlag(loadState === 'loading');
   const showRefreshing = useDelayedFlag(isRefreshing);

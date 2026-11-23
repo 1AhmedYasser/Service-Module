@@ -301,7 +301,16 @@
       },
       "toast": {
         "started": "Reindex started",
-        "failed": "Reindex failed"
+        "failed": "Reindex failed",
+        "indexFailed": "Indexing failed: {{name}}"
+      },
+      "failureReason": "Last indexing failed: {{reason}}",
+      "failureUnknown": "Last indexing failed",
+      "validation": {
+        "VALIDATION_NAME_MISSING": "Indexing needs a service name.",
+        "VALIDATION_DESCRIPTION_MISSING": "Indexing needs a service description.",
+        "VALIDATION_SERVICE_NOT_ACTIVE": "Only active services can be indexed.",
+        "VALIDATION_SERVICE_NOT_DISCOVERABLE": "Only discoverable services can be indexed."
       }
     },
     "pin": {
@@ -887,6 +896,15 @@
     "testSuccess": "Test successful",
     "testError": "Test failed",
     "reIndexSuccess": "Re-index started",
-    "reIndexError": "Re-index failed"
+    "reIndexError": "Re-index failed",
+    "indexFailed": "Indexing failed: {{name}}",
+    "indexFailureReason": "Last indexing failed: {{reason}}",
+    "indexFailureUnknown": "Last indexing failed",
+    "indexValidation": {
+      "VALIDATION_NAME_MISSING": "Indexing needs an endpoint name.",
+      "VALIDATION_DESCRIPTION_MISSING": "Indexing needs an API description.",
+      "VALIDATION_URL_MISSING": "Indexing needs a selected endpoint URL.",
+      "VALIDATION_METHOD_MISSING": "Indexing needs a selected HTTP method."
+    }
   }
 }
