@@ -26,12 +26,7 @@ type JumpToServiceContentProps = {
   readonly onCreateNewService: () => void;
 };
 
-const JumpToServiceContent: FC<JumpToServiceContentProps> = ({
-  node,
-  jumpToService,
-  onChange,
-  onCreateNewService,
-}) => {
+const JumpToServiceContent: FC<JumpToServiceContentProps> = ({ node, jumpToService, onChange, onCreateNewService }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const navigableServices = useServiceStore((state) => state.navigableServices);
